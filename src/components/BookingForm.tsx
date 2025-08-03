@@ -134,6 +134,18 @@ export function BookingForm({
                       </Button>
                     ))}
                 </div>
+                
+                {availability.timeSlots.filter(slot => slot.available && slot.quantity > slot.bookedQuantity).length === 0 && (
+                  <div className="text-center py-4 text-muted-foreground">
+                    No available time slots for this date.
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {availability.useHourlyBooking && (!availability.timeSlots || availability.timeSlots.length === 0) && (
+              <div className="text-center py-4 text-muted-foreground">
+                No time slots configured for this date. Please contact the administrator.
               </div>
             )}
           </div>

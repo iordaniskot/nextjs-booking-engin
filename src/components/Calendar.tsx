@@ -75,15 +75,39 @@ export function Calendar({
     const dayAvailability = availabilityMap.get(dateKey);
     const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
     
+    // Calculate availability considering hourly slots
+    let isAvailable = dayAvailability?.isAvailable && !isPast;
+    let availableQuantity = 0;
+    let hasBookings = false;
+    
+    if (dayAvailability) {
+      if (dayAvailability.useHourlyBooking && dayAvailability.timeSlots) {
+        // For hourly booking, check if any time slots are available
+        const availableSlots = dayAvailability.timeSlots.filter(slot => 
+          slot.available && slot.quantity > slot.bookedQuantity
+        );
+        isAvailable = isAvailable && availableSlots.length > 0;
+        availableQuantity = dayAvailability.timeSlots.reduce(
+          (sum, slot) => sum + Math.max(0, slot.quantity - slot.bookedQuantity), 0
+        );
+        hasBookings = dayAvailability.timeSlots.some(slot => slot.bookedQuantity > 0);
+      } else {
+        // For whole day booking
+        availableQuantity = dayAvailability.maxQuantity - dayAvailability.bookedQuantity;
+        hasBookings = dayAvailability.bookedQuantity > 0;
+        isAvailable = isAvailable && availableQuantity > 0;
+      }
+    }
+    
     return {
       dateKey,
       dayAvailability,
       isPast,
       isToday: dateKey === new Date().toISOString().split('T')[0],
       isSelected: dateKey === selectedDate,
-      isAvailable: dayAvailability?.isAvailable && !isPast,
-      hasBookings: dayAvailability && dayAvailability.bookedQuantity > 0,
-      availableQuantity: dayAvailability ? dayAvailability.maxQuantity - dayAvailability.bookedQuantity : 0
+      isAvailable,
+      hasBookings,
+      availableQuantity
     };
   };
 
