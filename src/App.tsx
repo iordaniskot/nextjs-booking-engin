@@ -487,13 +487,13 @@ function App() {
                             <div className="font-medium">{booking.customerName}</div>
                             <div className="text-sm text-muted-foreground">
                               {booking.isRangeBooking && booking.checkInDate && booking.checkOutDate
-                                ? formatDateRange(booking.checkInDate, booking.checkOutDate)
-                                : formatDateForDisplay(booking.date)
-                              }
                               {booking.startTime && ` at ${formatTimeForDisplay(booking.startTime)}`}
-                            </div>
+                                : formatDateForDisplay(booking.date)
                             <div className="text-sm text-muted-foreground">
                               Quantity: {booking.quantity} • Total: ${booking.totalPrice}
+                            </div>
+                            </div>round">
+                          </div>otal: ${booking.totalPrice}
                               {booking.isRangeBooking && booking.numberOfNights && ` • ${booking.numberOfNights} nights`}
                             </div>
                           </div>
@@ -504,9 +504,6 @@ function App() {
                             {booking.isRangeBooking && (
                               <Badge variant="outline" className="text-xs">
                                 Multi-day
-                              </Badge>
-                            )}
-                          </div>
                         </div>
                       ))}
                   </div>
@@ -515,6 +512,9 @@ function App() {
             </Card>
           </TabsContent>
           
+          <TabsContent value="admin" className="mt-6">
+            <AdminDashboard
+              availability={availability}
           <TabsContent value="admin" className="mt-6">
             <AdminDashboard
               availability={availability}
