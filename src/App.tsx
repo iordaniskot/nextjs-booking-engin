@@ -506,6 +506,7 @@ function App() {
                               </Badge>
                             )}
                           </div>
+                        </div>
                       ))}
                   </div>
                 )}
