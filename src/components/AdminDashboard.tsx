@@ -765,8 +765,10 @@ const BulkEditorDialog: React.FC<BulkEditorDialogProps> = ({
     availability: false,
     price: false,
     quantity: false,
-    hourlyBooking: false
+    hourlyBooking: false,
+    timeSlots: false
   });
+  const [customTimeSlots, setCustomTimeSlots] = useState<TimeSlot[]>([]);
 
   React.useEffect(() => {
     if (open) {
@@ -784,8 +786,10 @@ const BulkEditorDialog: React.FC<BulkEditorDialogProps> = ({
         availability: false,
         price: false,
         quantity: false,
-        hourlyBooking: false
+        hourlyBooking: false,
+        timeSlots: false
       });
+      setCustomTimeSlots([]);
     }
   }, [open, defaultSettings]);
 
@@ -823,30 +827,39 @@ const BulkEditorDialog: React.FC<BulkEditorDialogProps> = ({
     if (updateFields.hourlyBooking) {
       finalUpdates.useHourlyBooking = updates.useHourlyBooking;
       if (updates.useHourlyBooking) {
-        // Generate default time slots for hourly booking
-        const slots = generateTimeSlots(
-          defaultSettings.workingHours.start,
-          defaultSettings.workingHours.end,
-          defaultSettings.slotDuration
-        );
-
-        const timeSlots: TimeSlot[] = slots.map((startTime, index) => {
-          const startTimeDate = new Date(`1970-01-01T${startTime}:00`);
-          const endTimeDate = new Date(startTimeDate.getTime() + defaultSettings.slotDuration * 60000);
-          const endTime = endTimeDate.toTimeString().substring(0, 5);
-
-          return {
-            id: `slot-${index}`,
-            startTime,
-            endTime,
-            available: true,
+        // Use custom time slots if configured, otherwise generate defaults
+        if (updateFields.timeSlots && customTimeSlots.length > 0) {
+          finalUpdates.timeSlots = customTimeSlots.map(slot => ({
+            ...slot,
             quantity: updates.maxQuantity || defaultSettings.defaultQuantity,
-            bookedQuantity: 0,
             price: updates.basePrice || defaultSettings.defaultPrice
-          };
-        });
+          }));
+        } else {
+          // Generate default time slots for hourly booking
+          const slots = generateTimeSlots(
+            defaultSettings.workingHours.start,
+            defaultSettings.workingHours.end,
+            defaultSettings.slotDuration
+          );
 
-        finalUpdates.timeSlots = timeSlots;
+          const timeSlots: TimeSlot[] = slots.map((startTime, index) => {
+            const startTimeDate = new Date(`1970-01-01T${startTime}:00`);
+            const endTimeDate = new Date(startTimeDate.getTime() + defaultSettings.slotDuration * 60000);
+            const endTime = endTimeDate.toTimeString().substring(0, 5);
+
+            return {
+              id: `slot-${index}`,
+              startTime,
+              endTime,
+              available: true,
+              quantity: updates.maxQuantity || defaultSettings.defaultQuantity,
+              bookedQuantity: 0,
+              price: updates.basePrice || defaultSettings.defaultPrice
+            };
+          });
+
+          finalUpdates.timeSlots = timeSlots;
+        }
       }
     }
 
@@ -868,6 +881,96 @@ const BulkEditorDialog: React.FC<BulkEditorDialogProps> = ({
   };
 
   const dateInfo = getDateRangeInfo();
+
+  // Time slot management functions
+  const generateDefaultTimeSlots = () => {
+    const slots = generateTimeSlots(
+      defaultSettings.workingHours.start,
+      defaultSettings.workingHours.end,
+      defaultSettings.slotDuration
+    );
+
+    const timeSlots: TimeSlot[] = slots.map((startTime, index) => {
+      const startDate = new Date(`1970-01-01T${startTime}:00`);
+      const endDate = new Date(startDate.getTime() + defaultSettings.slotDuration * 60000);
+      const endTime = endDate.toTimeString().substring(0, 5);
+
+      return {
+        id: `slot-${Date.now()}-${index}`,
+        startTime,
+        endTime,
+        available: true,
+        quantity: updates.maxQuantity || defaultSettings.defaultQuantity,
+        bookedQuantity: 0,
+        price: updates.basePrice || defaultSettings.defaultPrice
+      };
+    });
+
+    setCustomTimeSlots(timeSlots);
+    setUpdateFields(prev => ({ ...prev, timeSlots: true }));
+    toast.success('Default time slots generated');
+  };
+
+  const handleAddTimeSlot = () => {
+    const newSlot: TimeSlot = {
+      id: `slot-${Date.now()}`,
+      startTime: '09:00',
+      endTime: '10:00',
+      available: true,
+      quantity: updates.maxQuantity || defaultSettings.defaultQuantity,
+      bookedQuantity: 0,
+      price: updates.basePrice || defaultSettings.defaultPrice
+    };
+
+    setCustomTimeSlots(prev => [...prev, newSlot]);
+    setUpdateFields(prev => ({ ...prev, timeSlots: true }));
+  };
+
+  const handleUpdateTimeSlot = (slotId: string, slotUpdates: Partial<TimeSlot>) => {
+    setCustomTimeSlots(prev =>
+      prev.map(slot =>
+        slot.id === slotId ? { ...slot, ...slotUpdates } : slot
+      )
+    );
+  };
+
+  const handleRemoveTimeSlot = (slotId: string) => {
+    setCustomTimeSlots(prev => prev.filter(slot => slot.id !== slotId));
+    if (customTimeSlots.length <= 1) {
+      setUpdateFields(prev => ({ ...prev, timeSlots: false }));
+    }
+  };
+
+  const handleHourlyBookingChange = (useHourly: boolean) => {
+    setUpdates(prev => ({ ...prev, useHourlyBooking: useHourly }));
+    if (!useHourly) {
+      setCustomTimeSlots([]);
+      setUpdateFields(prev => ({ ...prev, timeSlots: false }));
+    }
+  };
+
+  const handleCopyFromExistingDay = () => {
+    // Find a day that has hourly booking enabled and time slots
+    const dayWithTimeSlots = availability.find(day => 
+      day.useHourlyBooking && day.timeSlots && day.timeSlots.length > 0
+    );
+    
+    if (dayWithTimeSlots && dayWithTimeSlots.timeSlots) {
+      const copiedSlots = dayWithTimeSlots.timeSlots.map((slot, index) => ({
+        ...slot,
+        id: `copied-${Date.now()}-${index}`,
+        bookedQuantity: 0, // Reset booked quantity for new days
+        price: updates.basePrice || slot.price,
+        quantity: updates.maxQuantity || slot.quantity
+      }));
+      
+      setCustomTimeSlots(copiedSlots);
+      setUpdateFields(prev => ({ ...prev, timeSlots: true }));
+      toast.success(`Copied ${copiedSlots.length} time slots`);
+    } else {
+      toast.error('No existing days with time slots found to copy');
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1030,24 +1133,135 @@ const BulkEditorDialog: React.FC<BulkEditorDialogProps> = ({
                 <div className="space-y-2 flex-1">
                   <Label htmlFor="updateHourlyBooking">Update Booking Mode</Label>
                   {updateFields.hourlyBooking && (
-                    <div className="ml-6">
+                    <div className="ml-6 space-y-4">
                       <div className="flex items-center space-x-2">
                         <Switch
                           id="hourlyBooking"
                           checked={updates.useHourlyBooking || false}
-                          onCheckedChange={(checked) =>
-                            setUpdates(prev => ({ ...prev, useHourlyBooking: checked }))
-                          }
+                          onCheckedChange={handleHourlyBookingChange}
                         />
                         <Label htmlFor="hourlyBooking">
                           {updates.useHourlyBooking ? 'Hourly Time Slots' : 'Full Day Booking'}
                         </Label>
                       </div>
+                      
                       {updates.useHourlyBooking && (
-                        <p className="text-sm text-muted-foreground mt-2">
-                          Default time slots will be generated based on working hours 
-                          ({defaultSettings.workingHours.start} - {defaultSettings.workingHours.end})
-                        </p>
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <Label className="text-sm font-medium">Time Slot Configuration</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Customize time slots or use defaults based on working hours
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={generateDefaultTimeSlots}
+                              >
+                                Generate Default Slots
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleCopyFromExistingDay}
+                              >
+                                <Copy size={14} className="mr-1" />
+                                Copy from Existing Day
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={handleAddTimeSlot}
+                              >
+                                <Plus size={14} className="mr-1" />
+                                Add Custom Slot
+                              </Button>
+                            </div>
+                          </div>
+
+                          {customTimeSlots.length > 0 && (
+                            <Card className="p-4">
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-sm font-medium">Custom Time Slots</Label>
+                                  <Badge variant="secondary">
+                                    {customTimeSlots.length} slot{customTimeSlots.length !== 1 ? 's' : ''}
+                                  </Badge>
+                                </div>
+                                
+                                {customTimeSlots.map((slot, index) => (
+                                  <div key={slot.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+                                    <div className="grid grid-cols-4 gap-3 flex-1">
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">Start</Label>
+                                        <Input
+                                          type="time"
+                                          value={slot.startTime}
+                                          onChange={(e) => handleUpdateTimeSlot(slot.id, { startTime: e.target.value })}
+                                          className="h-8 text-xs"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">End</Label>
+                                        <Input
+                                          type="time"
+                                          value={slot.endTime}
+                                          onChange={(e) => handleUpdateTimeSlot(slot.id, { endTime: e.target.value })}
+                                          className="h-8 text-xs"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">Price</Label>
+                                        <Input
+                                          type="number"
+                                          value={slot.price}
+                                          onChange={(e) => handleUpdateTimeSlot(slot.id, { 
+                                            price: parseInt(e.target.value) || 0 
+                                          })}
+                                          className="h-8 text-xs"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">Qty</Label>
+                                        <Input
+                                          type="number"
+                                          value={slot.quantity}
+                                          onChange={(e) => handleUpdateTimeSlot(slot.id, { 
+                                            quantity: parseInt(e.target.value) || 0 
+                                          })}
+                                          className="h-8 text-xs"
+                                        />
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex flex-col gap-2">
+                                      <Switch
+                                        checked={slot.available}
+                                        onCheckedChange={(checked) => handleUpdateTimeSlot(slot.id, { available: checked })}
+                                      />
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() => handleRemoveTimeSlot(slot.id)}
+                                        className="h-6 w-6 p-0"
+                                      >
+                                        <Minus size={12} />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </Card>
+                          )}
+
+                          {customTimeSlots.length === 0 && (
+                            <div className="text-center py-4 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+                              No custom time slots configured. Default slots will be generated based on working hours 
+                              ({defaultSettings.workingHours.start} - {defaultSettings.workingHours.end})
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
@@ -1078,7 +1292,15 @@ const BulkEditorDialog: React.FC<BulkEditorDialogProps> = ({
                       <li>Set max quantity to: {updates.maxQuantity}</li>
                     )}
                     {updateFields.hourlyBooking && (
-                      <li>Set booking mode to: {updates.useHourlyBooking ? 'Hourly slots' : 'Full day'}</li>
+                      <li>
+                        Set booking mode to: {updates.useHourlyBooking ? 'Hourly slots' : 'Full day'}
+                        {updates.useHourlyBooking && updateFields.timeSlots && customTimeSlots.length > 0 && (
+                          <span> ({customTimeSlots.length} custom time slots)</span>
+                        )}
+                        {updates.useHourlyBooking && (!updateFields.timeSlots || customTimeSlots.length === 0) && (
+                          <span> (default time slots)</span>
+                        )}
+                      </li>
                     )}
                   </ul>
                 </div>
