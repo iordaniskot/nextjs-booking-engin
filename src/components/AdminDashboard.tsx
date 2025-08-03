@@ -15,7 +15,9 @@ import {
   DollarSign,
   Users,
   Eye,
-  Edit
+  Edit,
+  CalendarPlus,
+  Copy
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { DayAvailability, Booking, TimeSlot } from '@/lib/types';
@@ -143,6 +145,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedDay, setSelectedDay] = useState<DayAvailability | null>(null);
   const [showDayEditor, setShowDayEditor] = useState(false);
   const [showBookingPreview, setShowBookingPreview] = useState(false);
+  const [showBulkEditor, setShowBulkEditor] = useState(false);
   const [previewBookings, setPreviewBookings] = useState<Booking[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -205,6 +208,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     toast.success('Day updated successfully');
   };
 
+  const handleBulkUpdate = (updates: Partial<DayAvailability>, dateRange: { start: string; end: string }) => {
+    const startDate = new Date(dateRange.start);
+    const endDate = new Date(dateRange.end);
+    const updatedAvailability = [...availability];
+    let updatedCount = 0;
+
+    // Generate all dates in range
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      const existingDayIndex = updatedAvailability.findIndex(day => day.date === dateStr);
+      
+      if (existingDayIndex >= 0) {
+        // Update existing day
+        updatedAvailability[existingDayIndex] = {
+          ...updatedAvailability[existingDayIndex],
+          ...updates
+        };
+        updatedCount++;
+      } else {
+        // Create new day
+        const newDay: DayAvailability = {
+          date: dateStr,
+          isAvailable: updates.isAvailable ?? true,
+          basePrice: updates.basePrice ?? defaultSettings.defaultPrice,
+          maxQuantity: updates.maxQuantity ?? defaultSettings.defaultQuantity,
+          bookedQuantity: 0,
+          useHourlyBooking: updates.useHourlyBooking ?? false,
+          timeSlots: updates.timeSlots
+        };
+        updatedAvailability.push(newDay);
+        updatedCount++;
+      }
+    }
+
+    onUpdateAvailability(updatedAvailability);
+    setShowBulkEditor(false);
+    toast.success(`Updated ${updatedCount} days successfully`);
+  };
+
   const navigateMonth = (direction: 'prev' | 'next') => {
     setCurrentMonth(prev => {
       const newMonth = new Date(prev);
@@ -231,6 +273,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
         
         <div className="flex items-center gap-4">
+          <Button
+            onClick={() => setShowBulkEditor(true)}
+            className="gap-2"
+          >
+            <CalendarPlus size={16} />
+            Bulk Edit Days
+          </Button>
+          
           <Button
             variant="outline"
             onClick={() => navigateMonth('prev')}
@@ -296,6 +346,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           defaultSettings={defaultSettings}
         />
       )}
+
+      {/* Bulk Editor Dialog */}
+      <BulkEditorDialog
+        open={showBulkEditor}
+        onOpenChange={setShowBulkEditor}
+        onSave={handleBulkUpdate}
+        defaultSettings={defaultSettings}
+      />
 
       {/* Booking Preview Dialog */}
       <BookingPreviewDialog
@@ -670,6 +728,378 @@ const BookingPreviewDialog: React.FC<BookingPreviewDialogProps> = ({
                 </CardContent>
               </Card>
             ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+interface BulkEditorDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (updates: Partial<DayAvailability>, dateRange: { start: string; end: string }) => void;
+  defaultSettings: {
+    defaultPrice: number;
+    defaultQuantity: number;
+    workingHours: { start: string; end: string };
+    slotDuration: number;
+  };
+}
+
+const BulkEditorDialog: React.FC<BulkEditorDialogProps> = ({
+  open,
+  onOpenChange,
+  onSave,
+  defaultSettings
+}) => {
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [updates, setUpdates] = useState<Partial<DayAvailability>>({
+    isAvailable: true,
+    basePrice: defaultSettings.defaultPrice,
+    maxQuantity: defaultSettings.defaultQuantity,
+    useHourlyBooking: false
+  });
+  const [updateFields, setUpdateFields] = useState({
+    availability: false,
+    price: false,
+    quantity: false,
+    hourlyBooking: false
+  });
+
+  React.useEffect(() => {
+    if (open) {
+      // Reset form when dialog opens
+      const today = new Date().toISOString().split('T')[0];
+      setStartDate(today);
+      setEndDate(today);
+      setUpdates({
+        isAvailable: true,
+        basePrice: defaultSettings.defaultPrice,
+        maxQuantity: defaultSettings.defaultQuantity,
+        useHourlyBooking: false
+      });
+      setUpdateFields({
+        availability: false,
+        price: false,
+        quantity: false,
+        hourlyBooking: false
+      });
+    }
+  }, [open, defaultSettings]);
+
+  const handleSave = () => {
+    if (!startDate || !endDate) {
+      toast.error('Please select both start and end dates');
+      return;
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+      toast.error('Start date must be before or equal to end date');
+      return;
+    }
+
+    if (!Object.values(updateFields).some(Boolean)) {
+      toast.error('Please select at least one field to update');
+      return;
+    }
+
+    // Build updates object based on selected fields
+    const finalUpdates: Partial<DayAvailability> = {};
+    
+    if (updateFields.availability) {
+      finalUpdates.isAvailable = updates.isAvailable;
+    }
+    
+    if (updateFields.price) {
+      finalUpdates.basePrice = updates.basePrice;
+    }
+    
+    if (updateFields.quantity) {
+      finalUpdates.maxQuantity = updates.maxQuantity;
+    }
+    
+    if (updateFields.hourlyBooking) {
+      finalUpdates.useHourlyBooking = updates.useHourlyBooking;
+      if (updates.useHourlyBooking) {
+        // Generate default time slots for hourly booking
+        const slots = generateTimeSlots(
+          defaultSettings.workingHours.start,
+          defaultSettings.workingHours.end,
+          defaultSettings.slotDuration
+        );
+
+        const timeSlots: TimeSlot[] = slots.map((startTime, index) => {
+          const startTimeDate = new Date(`1970-01-01T${startTime}:00`);
+          const endTimeDate = new Date(startTimeDate.getTime() + defaultSettings.slotDuration * 60000);
+          const endTime = endTimeDate.toTimeString().substring(0, 5);
+
+          return {
+            id: `slot-${index}`,
+            startTime,
+            endTime,
+            available: true,
+            quantity: updates.maxQuantity || defaultSettings.defaultQuantity,
+            bookedQuantity: 0,
+            price: updates.basePrice || defaultSettings.defaultPrice
+          };
+        });
+
+        finalUpdates.timeSlots = timeSlots;
+      }
+    }
+
+    onSave(finalUpdates, { start: startDate, end: endDate });
+  };
+
+  const getDateRangeInfo = () => {
+    if (!startDate || !endDate) return null;
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    
+    return {
+      dayCount: diffDays,
+      isValid: start <= end
+    };
+  };
+
+  const dateInfo = getDateRangeInfo();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Bulk Edit Multiple Days</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Date Range Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Select Date Range</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">Start Date</Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">End Date</Label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
+              </div>
+              
+              {dateInfo && (
+                <div className={`text-sm p-3 rounded-lg ${
+                  dateInfo.isValid ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                }`}>
+                  {dateInfo.isValid 
+                    ? `Will update ${dateInfo.dayCount} day${dateInfo.dayCount !== 1 ? 's' : ''}`
+                    : 'Invalid date range - start date must be before or equal to end date'
+                  }
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Fields to Update */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Fields to Update</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Select which fields you want to update for the selected date range
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Availability */}
+              <div className="flex items-start space-x-3">
+                <Switch
+                  id="updateAvailability"
+                  checked={updateFields.availability}
+                  onCheckedChange={(checked) => 
+                    setUpdateFields(prev => ({ ...prev, availability: checked }))
+                  }
+                />
+                <div className="space-y-2 flex-1">
+                  <Label htmlFor="updateAvailability">Update Availability</Label>
+                  {updateFields.availability && (
+                    <div className="flex items-center space-x-2 ml-6">
+                      <Switch
+                        id="availability"
+                        checked={updates.isAvailable || false}
+                        onCheckedChange={(checked) =>
+                          setUpdates(prev => ({ ...prev, isAvailable: checked }))
+                        }
+                      />
+                      <Label htmlFor="availability">
+                        {updates.isAvailable ? 'Available' : 'Unavailable'}
+                      </Label>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Price */}
+              <div className="flex items-start space-x-3">
+                <Switch
+                  id="updatePrice"
+                  checked={updateFields.price}
+                  onCheckedChange={(checked) => 
+                    setUpdateFields(prev => ({ ...prev, price: checked }))
+                  }
+                />
+                <div className="space-y-2 flex-1">
+                  <Label htmlFor="updatePrice">Update Base Price</Label>
+                  {updateFields.price && (
+                    <div className="ml-6">
+                      <Input
+                        type="number"
+                        value={updates.basePrice || 0}
+                        onChange={(e) =>
+                          setUpdates(prev => ({ 
+                            ...prev, 
+                            basePrice: parseInt(e.target.value) || 0 
+                          }))
+                        }
+                        placeholder="Enter price"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Quantity */}
+              <div className="flex items-start space-x-3">
+                <Switch
+                  id="updateQuantity"
+                  checked={updateFields.quantity}
+                  onCheckedChange={(checked) => 
+                    setUpdateFields(prev => ({ ...prev, quantity: checked }))
+                  }
+                />
+                <div className="space-y-2 flex-1">
+                  <Label htmlFor="updateQuantity">Update Max Quantity</Label>
+                  {updateFields.quantity && (
+                    <div className="ml-6">
+                      <Input
+                        type="number"
+                        value={updates.maxQuantity || 0}
+                        onChange={(e) =>
+                          setUpdates(prev => ({ 
+                            ...prev, 
+                            maxQuantity: parseInt(e.target.value) || 0 
+                          }))
+                        }
+                        placeholder="Enter quantity"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Hourly Booking */}
+              <div className="flex items-start space-x-3">
+                <Switch
+                  id="updateHourlyBooking"
+                  checked={updateFields.hourlyBooking}
+                  onCheckedChange={(checked) => 
+                    setUpdateFields(prev => ({ ...prev, hourlyBooking: checked }))
+                  }
+                />
+                <div className="space-y-2 flex-1">
+                  <Label htmlFor="updateHourlyBooking">Update Booking Mode</Label>
+                  {updateFields.hourlyBooking && (
+                    <div className="ml-6">
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="hourlyBooking"
+                          checked={updates.useHourlyBooking || false}
+                          onCheckedChange={(checked) =>
+                            setUpdates(prev => ({ ...prev, useHourlyBooking: checked }))
+                          }
+                        />
+                        <Label htmlFor="hourlyBooking">
+                          {updates.useHourlyBooking ? 'Hourly Time Slots' : 'Full Day Booking'}
+                        </Label>
+                      </div>
+                      {updates.useHourlyBooking && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Default time slots will be generated based on working hours 
+                          ({defaultSettings.workingHours.start} - {defaultSettings.workingHours.end})
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Summary */}
+          {dateInfo?.isValid && Object.values(updateFields).some(Boolean) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Update Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <p><strong>Date Range:</strong> {formatDateForDisplay(startDate)} to {formatDateForDisplay(endDate)}</p>
+                  <p><strong>Days to Update:</strong> {dateInfo.dayCount}</p>
+                  <div><strong>Changes:</strong></div>
+                  <ul className="list-disc list-inside ml-4 space-y-1">
+                    {updateFields.availability && (
+                      <li>Set availability to: {updates.isAvailable ? 'Available' : 'Unavailable'}</li>
+                    )}
+                    {updateFields.price && (
+                      <li>Set base price to: ${updates.basePrice}</li>
+                    )}
+                    {updateFields.quantity && (
+                      <li>Set max quantity to: {updates.maxQuantity}</li>
+                    )}
+                    {updateFields.hourlyBooking && (
+                      <li>Set booking mode to: {updates.useHourlyBooking ? 'Hourly slots' : 'Full day'}</li>
+                    )}
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSave}
+              disabled={!dateInfo?.isValid || !Object.values(updateFields).some(Boolean)}
+            >
+              Update {dateInfo?.dayCount || 0} Day{dateInfo?.dayCount !== 1 ? 's' : ''}
+            </Button>
           </div>
         </div>
       </DialogContent>
