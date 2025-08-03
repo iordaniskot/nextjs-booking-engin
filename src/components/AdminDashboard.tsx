@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TimeInput } from './TimeInput';
 import { 
   Calendar as CalendarIcon,
   Plus,
@@ -556,18 +557,16 @@ const DayEditorDialog: React.FC<DayEditorDialogProps> = ({
                     <div className="grid grid-cols-4 gap-3 flex-1">
                       <div className="space-y-1">
                         <Label className="text-xs">Start Time</Label>
-                        <Input
-                          type="time"
+                        <TimeInput
                           value={slot.startTime}
-                          onChange={(e) => handleUpdateTimeSlot(slot.id, { startTime: e.target.value })}
+                          onChange={(value) => handleUpdateTimeSlot(slot.id, { startTime: value })}
                         />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">End Time</Label>
-                        <Input
-                          type="time"
+                        <TimeInput
                           value={slot.endTime}
-                          onChange={(e) => handleUpdateTimeSlot(slot.id, { endTime: e.target.value })}
+                          onChange={(value) => handleUpdateTimeSlot(slot.id, { endTime: value })}
                         />
                       </div>
                       <div className="space-y-1">
@@ -1206,19 +1205,17 @@ const BulkEditorDialog: React.FC<BulkEditorDialogProps> = ({
                                     <div className="grid grid-cols-4 gap-3 flex-1">
                                       <div className="space-y-1">
                                         <Label className="text-xs">Start</Label>
-                                        <Input
-                                          type="time"
+                                        <TimeInput
                                           value={slot.startTime}
-                                          onChange={(e) => handleUpdateTimeSlot(slot.id, { startTime: e.target.value })}
+                                          onChange={(value) => handleUpdateTimeSlot(slot.id, { startTime: value })}
                                           className="h-8 text-xs"
                                         />
                                       </div>
                                       <div className="space-y-1">
                                         <Label className="text-xs">End</Label>
-                                        <Input
-                                          type="time"
+                                        <TimeInput
                                           value={slot.endTime}
-                                          onChange={(e) => handleUpdateTimeSlot(slot.id, { endTime: e.target.value })}
+                                          onChange={(value) => handleUpdateTimeSlot(slot.id, { endTime: value })}
                                           className="h-8 text-xs"
                                         />
                                       </div>

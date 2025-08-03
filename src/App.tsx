@@ -3,6 +3,7 @@ import { useKV } from '@github/spark/hooks';
 import { Calendar } from './components/Calendar';
 import { BookingForm } from './components/BookingForm';
 import { AdminDashboard } from './components/AdminDashboard';
+import { TimeInput } from './components/TimeInput';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -695,22 +696,20 @@ function App() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="checkInTime">Default Check-in Time</Label>
-                        <Input
+                        <TimeInput
                           id="checkInTime"
-                          type="time"
                           value={settings?.checkInTime || ''}
-                          onChange={(e) => setSettings(prev => ({ ...prev!, checkInTime: e.target.value }))}
+                          onChange={(value) => setSettings(prev => ({ ...prev!, checkInTime: value }))}
                           placeholder="14:00"
                         />
                       </div>
                       
                       <div className="space-y-2">
                         <Label htmlFor="checkOutTime">Default Check-out Time</Label>
-                        <Input
+                        <TimeInput
                           id="checkOutTime"
-                          type="time"
                           value={settings?.checkOutTime || ''}
-                          onChange={(e) => setSettings(prev => ({ ...prev!, checkOutTime: e.target.value }))}
+                          onChange={(value) => setSettings(prev => ({ ...prev!, checkOutTime: value }))}
                           placeholder="10:00"
                         />
                       </div>

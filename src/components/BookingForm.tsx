@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Calendar, Clock, DollarSign, User, CalendarBlank, Bed, MapPin } from '@phosphor-icons/react';
+import { TimeInput } from './TimeInput';
 import { BookingFormData, DayAvailability, TimeSlot } from '@/lib/types';
 import { 
   formatDateForDisplay, 
@@ -406,11 +407,10 @@ export function BookingForm({
                         <MapPin size={14} />
                         Check-in Time
                       </Label>
-                      <Input
+                      <TimeInput
                         id="checkInTime"
-                        type="time"
                         value={formData.checkInTime || checkInTime || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, checkInTime: e.target.value }))}
+                        onChange={(value) => setFormData(prev => ({ ...prev, checkInTime: value }))}
                         placeholder={checkInTime || '14:00'}
                       />
                       {checkInTime && (
@@ -424,11 +424,10 @@ export function BookingForm({
                         <MapPin size={14} />
                         Check-out Time
                       </Label>
-                      <Input
+                      <TimeInput
                         id="checkOutTime"
-                        type="time"
                         value={formData.checkOutTime || checkOutTime || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, checkOutTime: e.target.value }))}
+                        onChange={(value) => setFormData(prev => ({ ...prev, checkOutTime: value }))}
                         placeholder={checkOutTime || '10:00'}
                       />
                       {checkOutTime && (
