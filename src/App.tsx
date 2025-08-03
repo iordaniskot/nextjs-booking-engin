@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Toaster } from '@/components/ui/sonner';
 import { 
   Calendar as CalendarIcon, 
   Download, 
@@ -80,8 +81,8 @@ function App() {
           basePrice: settings?.defaultPrice || 100,
           maxQuantity: settings?.defaultQuantity || 10,
           bookedQuantity: 0,
-          useHourlyBooking: settings?.useHourlyBooking || false,
-          timeSlots: settings?.useHourlyBooking ? generateDefaultTimeSlots() : undefined
+          useHourlyBooking: false, // Default to false for new days
+          timeSlots: undefined // Start with no time slots
         };
         
         newAvailability.push(dayAvailability);
@@ -129,6 +130,36 @@ function App() {
 
   const handleBookingSubmit = async (bookingData: BookingFormData) => {
     try {
+      // Validation checks
+      if (!bookingData.customerName?.trim() || !bookingData.customerEmail?.trim()) {
+        toast.error('Please fill in all required customer information');
+        return;
+      }
+
+      const dayAvailability = availability.find(day => day.date === bookingData.date);
+      if (!dayAvailability || !dayAvailability.isAvailable) {
+        toast.error('Selected date is not available for booking');
+        return;
+      }
+
+      // Check quantity availability
+      if (dayAvailability.useHourlyBooking && dayAvailability.timeSlots && bookingData.startTime) {
+        const selectedSlot = dayAvailability.timeSlots.find(slot => slot.startTime === bookingData.startTime);
+        if (!selectedSlot || !selectedSlot.available) {
+          toast.error('Selected time slot is not available');
+          return;
+        }
+        if ((selectedSlot.quantity - selectedSlot.bookedQuantity) < bookingData.quantity) {
+          toast.error('Not enough capacity available for selected time slot');
+          return;
+        }
+      } else {
+        if ((dayAvailability.maxQuantity - dayAvailability.bookedQuantity) < bookingData.quantity) {
+          toast.error('Not enough capacity available for selected date');
+          return;
+        }
+      }
+
       const newBooking: Booking = {
         id: `booking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         ...bookingData,
@@ -170,6 +201,7 @@ function App() {
       setSelectedDate(undefined);
       toast.success(`Booking confirmed for ${formatDateForDisplay(bookingData.date)}`);
     } catch (error) {
+      console.error('Booking error:', error);
       toast.error('Failed to create booking. Please try again.');
     }
   };
@@ -398,7 +430,7 @@ function App() {
 
         {/* Booking Form Dialog */}
         <Dialog open={showBookingForm} onOpenChange={setShowBookingForm}>
-          <DialogContent className="w-full max-w-none max-h-[90vh] overflow-y-auto m-4">
+          <DialogContent className="w-[95vw] max-w-none max-h-[90vh] overflow-y-auto">
             {selectedDate && selectedDayAvailability && (
               <BookingForm
                 selectedDate={selectedDate}
@@ -465,6 +497,7 @@ function App() {
           </DialogContent>
         </Dialog>
       </div>
+      <Toaster />
     </div>
   );
 }

@@ -93,27 +93,26 @@ export function BookingForm({
     (!availability.useHourlyBooking || selectedTimeSlot);
 
   return (
-    <Card className="w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar size={24} className="text-primary" />
-          New Booking
-        </CardTitle>
-      </CardHeader>
+    <div className="w-full max-w-4xl mx-auto">
+      <div className="flex items-center gap-2 mb-6">
+        <Calendar size={24} className="text-primary" />
+        <h2 className="text-2xl font-semibold">New Booking</h2>
+      </div>
       
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Date and Time Selection */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-lg font-medium">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Date and Time Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
               <Calendar size={20} />
               {formatDateForDisplay(selectedDate)}
-            </div>
-
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
             {availability.useHourlyBooking && availability.timeSlots && (
               <div className="space-y-2">
                 <Label>Select Time Slot</Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                   {availability.timeSlots
                     .filter(slot => slot.available && slot.quantity > slot.bookedQuantity)
                     .map(slot => (
@@ -148,13 +147,17 @@ export function BookingForm({
                 No time slots configured for this date. Please contact the administrator.
               </div>
             )}
-          </div>
+          </CardContent>
+        </Card>
 
-          <Separator />
+        <Separator />
 
-          {/* Quantity Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="quantity">Quantity</Label>
+        {/* Quantity Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Quantity</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -187,17 +190,20 @@ export function BookingForm({
                 {maxQuantity} available
               </Badge>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          <Separator />
+        <Separator />
 
-          {/* Customer Information */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-lg font-medium">
+        {/* Customer Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
               <User size={20} />
               Customer Information
-            </div>
-
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="customerName">Full Name *</Label>
@@ -245,17 +251,20 @@ export function BookingForm({
                 rows={3}
               />
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          <Separator />
+        <Separator />
 
-          {/* Price Summary */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-lg font-medium">
+        {/* Price Summary */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
               <DollarSign size={20} />
               Booking Summary
-            </div>
-
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="bg-muted p-4 rounded-lg space-y-2">
               <div className="flex justify-between">
                 <span>Price per unit:</span>
@@ -271,29 +280,29 @@ export function BookingForm({
                 <span>${totalPrice}</span>
               </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Action Buttons */}
-          <div className="flex gap-4 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-              className="flex-1"
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={!isFormValid || isSubmitting}
-              className="flex-1"
-            >
-              {isSubmitting ? "Creating Booking..." : "Confirm Booking"}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+        {/* Action Buttons */}
+        <div className="flex gap-4 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            className="flex-1"
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={!isFormValid || isSubmitting}
+            className="flex-1"
+          >
+            {isSubmitting ? "Creating Booking..." : "Confirm Booking"}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }

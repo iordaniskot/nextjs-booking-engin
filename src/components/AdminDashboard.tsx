@@ -54,8 +54,8 @@ const CalendarCell: React.FC<CalendarCellProps> = ({
   const hasBookings = bookingsForDay.length > 0;
   const totalRevenue = bookingsForDay.reduce((sum, booking) => sum + booking.totalPrice, 0);
   
-  const availableQuantity = day.useHourlyBooking && day.timeSlots
-    ? day.timeSlots.reduce((sum, slot) => sum + (slot.quantity - slot.bookedQuantity), 0)
+  const availableQuantity = day.useHourlyBooking && day.timeSlots && day.timeSlots.length > 0
+    ? day.timeSlots.reduce((sum, slot) => sum + Math.max(0, slot.quantity - slot.bookedQuantity), 0)
     : day.maxQuantity - day.bookedQuantity;
 
   return (
@@ -178,7 +178,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       basePrice: defaultSettings.defaultPrice,
       maxQuantity: defaultSettings.defaultQuantity,
       bookedQuantity: 0,
-      useHourlyBooking: false
+      useHourlyBooking: false,
+      timeSlots: undefined
     };
   }
 
@@ -221,9 +222,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       
       if (existingDayIndex >= 0) {
         // Update existing day
+        const existingDay = updatedAvailability[existingDayIndex];
         updatedAvailability[existingDayIndex] = {
-          ...updatedAvailability[existingDayIndex],
-          ...updates
+          ...existingDay,
+          ...updates,
+          // Preserve existing time slots if not updating hourly booking or time slots
+          timeSlots: updates.useHourlyBooking !== undefined 
+            ? updates.timeSlots 
+            : existingDay.timeSlots
         };
         updatedCount++;
       } else {
@@ -235,7 +241,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           maxQuantity: updates.maxQuantity ?? defaultSettings.defaultQuantity,
           bookedQuantity: 0,
           useHourlyBooking: updates.useHourlyBooking ?? false,
-          timeSlots: updates.timeSlots
+          timeSlots: updates.timeSlots || (updates.useHourlyBooking ? [] : undefined)
         };
         updatedAvailability.push(newDay);
         updatedCount++;
@@ -419,6 +425,7 @@ const DayEditorDialog: React.FC<DayEditorDialogProps> = ({
       setEditingDay(prev => ({
         ...prev,
         useHourlyBooking: true,
+        isAvailable: true, // Ensure day stays available when enabling hourly booking
         timeSlots
       }));
     } else {
@@ -465,7 +472,7 @@ const DayEditorDialog: React.FC<DayEditorDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-none max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             Edit Day - {formatDateForDisplay(editingDay.date)}
@@ -646,7 +653,7 @@ const BookingPreviewDialog: React.FC<BookingPreviewDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-none max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             Bookings for {formatDateForDisplay(bookings[0]?.date)}
@@ -831,8 +838,9 @@ const BulkEditorDialog: React.FC<BulkEditorDialogProps> = ({
         if (updateFields.timeSlots && customTimeSlots.length > 0) {
           finalUpdates.timeSlots = customTimeSlots.map(slot => ({
             ...slot,
-            quantity: updates.maxQuantity || defaultSettings.defaultQuantity,
-            price: updates.basePrice || defaultSettings.defaultPrice
+            quantity: updateFields.quantity ? (updates.maxQuantity || defaultSettings.defaultQuantity) : slot.quantity,
+            price: updateFields.price ? (updates.basePrice || defaultSettings.defaultPrice) : slot.price,
+            bookedQuantity: 0 // Reset booked quantity for bulk updates
           }));
         } else {
           // Generate default time slots for hourly booking
@@ -852,14 +860,17 @@ const BulkEditorDialog: React.FC<BulkEditorDialogProps> = ({
               startTime,
               endTime,
               available: true,
-              quantity: updates.maxQuantity || defaultSettings.defaultQuantity,
+              quantity: updateFields.quantity ? (updates.maxQuantity || defaultSettings.defaultQuantity) : defaultSettings.defaultQuantity,
               bookedQuantity: 0,
-              price: updates.basePrice || defaultSettings.defaultPrice
+              price: updateFields.price ? (updates.basePrice || defaultSettings.defaultPrice) : defaultSettings.defaultPrice
             };
           });
 
           finalUpdates.timeSlots = timeSlots;
         }
+      } else {
+        // When disabling hourly booking, clear time slots
+        finalUpdates.timeSlots = undefined;
       }
     }
 
@@ -974,7 +985,7 @@ const BulkEditorDialog: React.FC<BulkEditorDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-none max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Bulk Edit Multiple Days</DialogTitle>
         </DialogHeader>

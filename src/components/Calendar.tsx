@@ -86,14 +86,15 @@ export function Calendar({
         const availableSlots = dayAvailability.timeSlots.filter(slot => 
           slot.available && slot.quantity > slot.bookedQuantity
         );
-        isAvailable = isAvailable && availableSlots.length > 0;
+        // Day is available if it's marked available AND has at least one available time slot
+        isAvailable = isAvailable && (availableSlots.length > 0 || dayAvailability.timeSlots.length === 0);
         availableQuantity = dayAvailability.timeSlots.reduce(
           (sum, slot) => sum + Math.max(0, slot.quantity - slot.bookedQuantity), 0
         );
         hasBookings = dayAvailability.timeSlots.some(slot => slot.bookedQuantity > 0);
       } else {
         // For whole day booking
-        availableQuantity = dayAvailability.maxQuantity - dayAvailability.bookedQuantity;
+        availableQuantity = Math.max(0, dayAvailability.maxQuantity - dayAvailability.bookedQuantity);
         hasBookings = dayAvailability.bookedQuantity > 0;
         isAvailable = isAvailable && availableQuantity > 0;
       }
