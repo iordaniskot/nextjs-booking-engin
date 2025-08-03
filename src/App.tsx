@@ -1,5 +1,455 @@
+import React, { useState, useEffect } from 'react';
+import { useKV } from '@github/spark/hooks';
+import { Calendar } from './components/Calendar';
+import { BookingForm } from './components/BookingForm';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
+import { 
+  Calendar as CalendarIcon, 
+  Download, 
+  Upload, 
+  Settings, 
+  Plus,
+  DollarSign,
+  Clock,
+  Users
+} from '@phosphor-icons/react';
+import { toast } from 'sonner';
+import { 
+  DayAvailability, 
+  Booking, 
+  BookingSettings, 
+  BookingFormData,
+  TimeSlot 
+} from '@/lib/types';
+import { 
+  generateICalFile, 
+  parseICalFile, 
+  generateTimeSlots,
+  formatDateForDisplay,
+  formatTimeForDisplay 
+} from '@/lib/calendar-utils';
+
 function App() {
-    return <div></div>
+  const [bookings, setBookings] = useKV<Booking[]>('bookings', []);
+  const [availability, setAvailability] = useKV<DayAvailability[]>('availability', []);
+  const [settings, setSettings] = useKV<BookingSettings>('settings', {
+    businessName: 'My Booking Business',
+    defaultPrice: 100,
+    defaultQuantity: 10,
+    useHourlyBooking: false,
+    workingHours: { start: '09:00', end: '17:00' },
+    slotDuration: 60,
+    advanceBookingDays: 90,
+    timezone: 'UTC'
+  });
+
+  const [selectedDate, setSelectedDate] = useState<string | undefined>();
+  const [showBookingForm, setShowBookingForm] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [activeTab, setActiveTab] = useState('calendar');
+
+  useEffect(() => {
+    initializeAvailability();
+  }, [settings]);
+
+  const initializeAvailability = () => {
+    const today = new Date();
+    const endDate = new Date();
+    endDate.setDate(today.getDate() + (settings?.advanceBookingDays || 90));
+
+    const existingDates = new Set(availability.map(day => day.date));
+    const newAvailability: DayAvailability[] = [...availability];
+
+    for (let d = new Date(today); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateKey = d.toISOString().split('T')[0];
+      
+      if (!existingDates.has(dateKey)) {
+        const dayAvailability: DayAvailability = {
+          date: dateKey,
+          isAvailable: true,
+          basePrice: settings?.defaultPrice || 100,
+          maxQuantity: settings?.defaultQuantity || 10,
+          bookedQuantity: 0,
+          useHourlyBooking: settings?.useHourlyBooking || false,
+          timeSlots: settings?.useHourlyBooking ? generateDefaultTimeSlots() : undefined
+        };
+        
+        newAvailability.push(dayAvailability);
+      }
+    }
+
+    if (newAvailability.length > availability.length) {
+      setAvailability(newAvailability);
+    }
+  };
+
+  const generateDefaultTimeSlots = (): TimeSlot[] => {
+    if (!settings) return [];
+    
+    const slots = generateTimeSlots(
+      settings.workingHours.start, 
+      settings.workingHours.end, 
+      settings.slotDuration
+    );
+
+    return slots.map((startTime, index) => {
+      const startDate = new Date(`1970-01-01T${startTime}:00`);
+      const endDate = new Date(startDate.getTime() + settings.slotDuration * 60000);
+      const endTime = endDate.toTimeString().substring(0, 5);
+
+      return {
+        id: `slot-${index}`,
+        startTime,
+        endTime,
+        available: true,
+        quantity: settings.defaultQuantity,
+        bookedQuantity: 0,
+        price: settings.defaultPrice
+      };
+    });
+  };
+
+  const handleDateSelect = (date: string) => {
+    setSelectedDate(date);
+    const dayAvailability = availability.find(day => day.date === date);
+    if (dayAvailability?.isAvailable) {
+      setShowBookingForm(true);
+    }
+  };
+
+  const handleBookingSubmit = async (bookingData: BookingFormData) => {
+    try {
+      const newBooking: Booking = {
+        id: `booking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        ...bookingData,
+        totalPrice: calculateBookingPrice(bookingData),
+        status: 'confirmed',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      setBookings(currentBookings => [...currentBookings, newBooking]);
+      
+      // Update availability
+      setAvailability(currentAvailability => 
+        currentAvailability.map(day => {
+          if (day.date === bookingData.date) {
+            const updatedDay = { ...day };
+            
+            if (day.useHourlyBooking && day.timeSlots && bookingData.startTime) {
+              updatedDay.timeSlots = day.timeSlots.map(slot => {
+                if (slot.startTime === bookingData.startTime) {
+                  return {
+                    ...slot,
+                    bookedQuantity: slot.bookedQuantity + bookingData.quantity
+                  };
+                }
+                return slot;
+              });
+            } else {
+              updatedDay.bookedQuantity = day.bookedQuantity + bookingData.quantity;
+            }
+            
+            return updatedDay;
+          }
+          return day;
+        })
+      );
+
+      setShowBookingForm(false);
+      setSelectedDate(undefined);
+      toast.success(`Booking confirmed for ${formatDateForDisplay(bookingData.date)}`);
+    } catch (error) {
+      toast.error('Failed to create booking. Please try again.');
+    }
+  };
+
+  const calculateBookingPrice = (bookingData: BookingFormData): number => {
+    const dayAvailability = availability.find(day => day.date === bookingData.date);
+    if (!dayAvailability) return 0;
+
+    if (dayAvailability.useHourlyBooking && dayAvailability.timeSlots && bookingData.startTime) {
+      const timeSlot = dayAvailability.timeSlots.find(slot => slot.startTime === bookingData.startTime);
+      return (timeSlot?.price || dayAvailability.basePrice) * bookingData.quantity;
+    }
+
+    return dayAvailability.basePrice * bookingData.quantity;
+  };
+
+  const handleExportBookings = () => {
+    const events = bookings.map(booking => ({
+      summary: `Booking - ${booking.customerName}`,
+      description: `Customer: ${booking.customerName}\nEmail: ${booking.customerEmail}\nPhone: ${booking.customerPhone || 'N/A'}\nQuantity: ${booking.quantity}\nTotal: $${booking.totalPrice}\nNotes: ${booking.notes || 'N/A'}`,
+      startDate: booking.date,
+      endDate: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      allDay: !booking.startTime,
+      location: settings?.businessName || 'Booking Location'
+    }));
+
+    generateICalFile(events, 'bookings.ics');
+    toast.success('Bookings exported successfully');
+  };
+
+  const handleImportCalendar = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const events = parseICalFile(content);
+        
+        // Convert events to bookings (simplified)
+        const importedBookings: Booking[] = events.map((event, index) => ({
+          id: `imported-${Date.now()}-${index}`,
+          date: event.startDate,
+          startTime: event.startTime,
+          endTime: event.endTime,
+          quantity: 1,
+          totalPrice: settings?.defaultPrice || 100,
+          customerName: event.summary || 'Imported Booking',
+          customerEmail: 'imported@example.com',
+          notes: event.description,
+          status: 'confirmed' as const,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }));
+
+        setBookings(currentBookings => [...currentBookings, ...importedBookings]);
+        toast.success(`Imported ${importedBookings.length} bookings`);
+      } catch (error) {
+        toast.error('Failed to import calendar file');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const selectedDayAvailability = selectedDate 
+    ? availability.find(day => day.date === selectedDate)
+    : undefined;
+
+  const totalRevenue = bookings.reduce((sum, booking) => sum + booking.totalPrice, 0);
+  const todayBookings = bookings.filter(booking => 
+    booking.date === new Date().toISOString().split('T')[0]
+  ).length;
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">
+              {settings?.businessName || 'Booking Engine'}
+            </h1>
+            <p className="text-muted-foreground">
+              Manage your bookings and availability
+            </p>
+          </div>
+          
+          <div className="flex gap-2">
+            <input
+              type="file"
+              accept=".ics"
+              onChange={handleImportCalendar}
+              className="hidden"
+              id="import-calendar"
+            />
+            <Button
+              variant="outline"
+              onClick={() => document.getElementById('import-calendar')?.click()}
+            >
+              <Upload size={16} className="mr-2" />
+              Import iCal
+            </Button>
+            
+            <Button
+              variant="outline"
+              onClick={handleExportBookings}
+              disabled={bookings.length === 0}
+            >
+              <Download size={16} className="mr-2" />
+              Export iCal
+            </Button>
+            
+            <Button
+              variant="outline"
+              onClick={() => setShowSettings(true)}
+            >
+              <Settings size={16} className="mr-2" />
+              Settings
+            </Button>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+              <DollarSign size={16} className="text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${totalRevenue}</div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
+              <CalendarIcon size={16} className="text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{bookings.length}</div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Today's Bookings</CardTitle>
+              <Clock size={16} className="text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{todayBookings}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="calendar">Calendar View</TabsTrigger>
+            <TabsTrigger value="bookings">Booking List</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="calendar" className="mt-6">
+            <Calendar
+              availability={availability}
+              selectedDate={selectedDate}
+              onDateSelect={handleDateSelect}
+            />
+          </TabsContent>
+          
+          <TabsContent value="bookings" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Bookings</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {bookings.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No bookings yet. Start by selecting a date on the calendar.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {bookings
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .map(booking => (
+                        <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div>
+                            <div className="font-medium">{booking.customerName}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {formatDateForDisplay(booking.date)}
+                              {booking.startTime && ` at ${formatTimeForDisplay(booking.startTime)}`}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Quantity: {booking.quantity} • Total: ${booking.totalPrice}
+                            </div>
+                          </div>
+                          <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
+                            {booking.status}
+                          </Badge>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Booking Form Dialog */}
+        <Dialog open={showBookingForm} onOpenChange={setShowBookingForm}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            {selectedDate && selectedDayAvailability && (
+              <BookingForm
+                selectedDate={selectedDate}
+                availability={selectedDayAvailability}
+                onSubmit={handleBookingSubmit}
+                onCancel={() => {
+                  setShowBookingForm(false);
+                  setSelectedDate(undefined);
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Settings Dialog */}
+        <Dialog open={showSettings} onOpenChange={setShowSettings}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Booking Settings</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="businessName">Business Name</Label>
+                <Input
+                  id="businessName"
+                  value={settings?.businessName || ''}
+                  onChange={(e) => setSettings(prev => ({ ...prev!, businessName: e.target.value }))}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="defaultPrice">Default Price ($)</Label>
+                <Input
+                  id="defaultPrice"
+                  type="number"
+                  value={settings?.defaultPrice || 0}
+                  onChange={(e) => setSettings(prev => ({ ...prev!, defaultPrice: parseInt(e.target.value) || 0 }))}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="defaultQuantity">Default Quantity</Label>
+                <Input
+                  id="defaultQuantity"
+                  type="number"
+                  value={settings?.defaultQuantity || 0}
+                  onChange={(e) => setSettings(prev => ({ ...prev!, defaultQuantity: parseInt(e.target.value) || 0 }))}
+                />
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="useHourlyBooking"
+                  checked={settings?.useHourlyBooking || false}
+                  onCheckedChange={(checked) => setSettings(prev => ({ ...prev!, useHourlyBooking: checked }))}
+                />
+                <Label htmlFor="useHourlyBooking">Enable Hourly Booking</Label>
+              </div>
+              
+              <Button onClick={() => setShowSettings(false)} className="w-full">
+                Save Settings
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default App;
