@@ -730,13 +730,15 @@ export function BookingForm({
                       </div>
                     )}
                   </div>
+                  
+                  <Separator />
+                  
+                  <div className="flex justify-between text-lg font-semibold text-primary">
+                    <span>Total Amount:</span>
+                    <span>${totalPrice}</span>
+                  </div>
                 </>
-              <Separator />
               
-              <div className="flex justify-between text-lg font-semibold text-primary">
-                <span>Total Amount:</span>
-                <span>${totalPrice}</span>
-              </div>
               
               {allowRangeBooking && numberOfNights > 1 && (
                 <div className="text-xs text-muted-foreground text-center">
