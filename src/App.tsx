@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useKV } from '@github/spark/hooks';
 import { Calendar } from './components/Calendar';
 import { BookingForm } from './components/BookingForm';
+import { AdminDashboard } from './components/AdminDashboard';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +20,8 @@ import {
   Plus,
   DollarSign,
   Clock,
-  Users
+  Users,
+  GearSix
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { 
@@ -328,9 +330,10 @@ function App() {
 
         {/* Main Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="calendar">Calendar View</TabsTrigger>
             <TabsTrigger value="bookings">Booking List</TabsTrigger>
+            <TabsTrigger value="admin">Admin Dashboard</TabsTrigger>
           </TabsList>
           
           <TabsContent value="calendar" className="mt-6">
@@ -376,6 +379,20 @@ function App() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+          
+          <TabsContent value="admin" className="mt-6">
+            <AdminDashboard
+              availability={availability}
+              bookings={bookings}
+              onUpdateAvailability={setAvailability}
+              defaultSettings={{
+                defaultPrice: settings?.defaultPrice || 100,
+                defaultQuantity: settings?.defaultQuantity || 10,
+                workingHours: settings?.workingHours || { start: '09:00', end: '17:00' },
+                slotDuration: settings?.slotDuration || 60
+              }}
+            />
           </TabsContent>
         </Tabs>
 
