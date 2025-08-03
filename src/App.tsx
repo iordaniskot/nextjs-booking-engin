@@ -44,7 +44,9 @@ import {
   isDateInRange,
   isEarlyCheckIn,
   isLateCheckOut,
-  calculateAdditionalFees
+  calculateAdditionalFees,
+  isStayOver24Hours,
+  calculateStayDuration
 } from '@/lib/calendar-utils';
 
 function App() {
@@ -182,13 +184,17 @@ function App() {
         const totalPrice = calculateBookingPrice(bookingData) * numberOfNights;
 
         // Calculate additional fees for early check-in and late check-out
+        const dayPrice = availability.find(day => day.date === bookingData.checkInDate)?.basePrice || settings.defaultPrice;
         const additionalFees = calculateAdditionalFees(
           bookingData.checkInTime,
           bookingData.checkOutTime,
           settings.checkInTime,
           settings.checkOutTime,
           settings.earlyCheckInFee || 0,
-          settings.lateCheckOutFee || 0
+          settings.lateCheckOutFee || 0,
+          bookingData.checkInDate,
+          bookingData.checkOutDate,
+          dayPrice
         );
 
         const finalTotalPrice = totalPrice + additionalFees.totalAdditionalFees;
@@ -215,6 +221,7 @@ function App() {
           numberOfNights,
           earlyCheckInFee: additionalFees.earlyCheckInFee,
           lateCheckOutFee: additionalFees.lateCheckOutFee,
+          over24HoursPenalty: additionalFees.over24HoursPenalty,
           isEarlyCheckIn: bookingData.isEarlyCheckIn,
           isLateCheckOut: bookingData.isLateCheckOut
         };
@@ -542,10 +549,11 @@ function App() {
                             <div className="text-sm text-muted-foreground">
                               Quantity: {booking.quantity} • Total: ${booking.totalPrice}
                               {booking.isRangeBooking && booking.numberOfNights && ` • ${booking.numberOfNights} nights`}
-                              {(booking.earlyCheckInFee || booking.lateCheckOutFee) && (
+                              {(booking.earlyCheckInFee || booking.lateCheckOutFee || booking.over24HoursPenalty) && (
                                 <span className="text-accent">
                                   {booking.earlyCheckInFee && ` • Early check-in: +$${booking.earlyCheckInFee}`}
                                   {booking.lateCheckOutFee && ` • Late check-out: +$${booking.lateCheckOutFee}`}
+                                  {booking.over24HoursPenalty && ` • Over 24hr penalty: +$${booking.over24HoursPenalty}`}
                                 </span>
                               )}
                             </div>

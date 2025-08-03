@@ -18,7 +18,9 @@ import {
   formatDateRange,
   isEarlyCheckIn,
   isLateCheckOut,
-  calculateAdditionalFees
+  calculateAdditionalFees,
+  isStayOver24Hours,
+  calculateStayDuration
 } from '@/lib/calendar-utils';
 import { cn } from '@/lib/utils';
 
@@ -81,7 +83,12 @@ export function BookingForm({
 
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [totalPrice, setTotalPrice] = useState(0);
-  const [additionalFees, setAdditionalFees] = useState({ earlyCheckInFee: 0, lateCheckOutFee: 0, totalAdditionalFees: 0 });
+  const [additionalFees, setAdditionalFees] = useState({ 
+    earlyCheckInFee: 0, 
+    lateCheckOutFee: 0, 
+    over24HoursPenalty: 0, 
+    totalAdditionalFees: 0 
+  });
 
   // Get the availability for the selected/check-in date
   const dayAvailability = Array.isArray(availability) 
@@ -103,7 +110,7 @@ export function BookingForm({
   const calculateTotalPrice = () => {
     if (!dayAvailability) {
       setTotalPrice(0);
-      setAdditionalFees({ earlyCheckInFee: 0, lateCheckOutFee: 0, totalAdditionalFees: 0 });
+      setAdditionalFees({ earlyCheckInFee: 0, lateCheckOutFee: 0, over24HoursPenalty: 0, totalAdditionalFees: 0 });
       return;
     }
 
@@ -117,18 +124,34 @@ export function BookingForm({
       basePrice = pricePerUnit * formData.quantity;
     }
 
-    // Calculate additional fees for early check-in and late check-out
-    let calculatedFees = { earlyCheckInFee: 0, lateCheckOutFee: 0, totalAdditionalFees: 0 };
+    // Calculate additional fees for early check-in, late check-out, and over 24hr penalty
+    let calculatedFees = { earlyCheckInFee: 0, lateCheckOutFee: 0, over24HoursPenalty: 0, totalAdditionalFees: 0 };
     
     if (allowRangeBooking) {
       // Only calculate fees if early/late options are explicitly selected
       if (formData.isEarlyCheckIn && earlyCheckInEnabled) {
-        calculatedFees.earlyCheckInFee = earlyCheckInFee;
+        calculatedFees.earlyCheckInFee = earlyCheckInFee || 0;
       }
       if (formData.isLateCheckOut && lateCheckOutEnabled) {
-        calculatedFees.lateCheckOutFee = lateCheckOutFee;
+        calculatedFees.lateCheckOutFee = lateCheckOutFee || 0;
       }
-      calculatedFees.totalAdditionalFees = calculatedFees.earlyCheckInFee + calculatedFees.lateCheckOutFee;
+      
+      // Calculate over 24 hours penalty when using custom times
+      if (formData.checkInDate && formData.checkOutDate && 
+          formData.checkInTime && formData.checkOutTime && 
+          !requireCheckInOutTimes) { // Only when custom times are allowed
+        const isOver24Hours = isStayOver24Hours(
+          formData.checkInDate, 
+          formData.checkOutDate, 
+          formData.checkInTime, 
+          formData.checkOutTime
+        );
+        if (isOver24Hours) {
+          calculatedFees.over24HoursPenalty = dayAvailability.basePrice;
+        }
+      }
+      
+      calculatedFees.totalAdditionalFees = calculatedFees.earlyCheckInFee + calculatedFees.lateCheckOutFee + calculatedFees.over24HoursPenalty;
     }
 
     setAdditionalFees(calculatedFees);
@@ -429,6 +452,36 @@ export function BookingForm({
                       </p>
                     </div>
                   )}
+                  
+                  {/* Warning for stays over 24 hours */}
+                  {formData.checkInDate && formData.checkOutDate && 
+                   formData.checkInTime && formData.checkOutTime && 
+                   !requireCheckInOutTimes && (
+                    (() => {
+                      const stayDuration = calculateStayDuration(
+                        formData.checkInDate, 
+                        formData.checkOutDate, 
+                        formData.checkInTime, 
+                        formData.checkOutTime
+                      );
+                      const isOver24Hours = stayDuration > 24;
+                      
+                      return isOver24Hours ? (
+                        <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Clock size={16} className="text-amber-600" />
+                            <span className="text-sm font-medium text-amber-800">
+                              Extended Stay Detected
+                            </span>
+                          </div>
+                          <p className="text-sm text-amber-700">
+                            Your stay duration is {stayDuration.toFixed(1)} hours (over 24 hours). 
+                            An additional penalty of ${dayAvailability?.basePrice || 0} will be applied.
+                          </p>
+                        </div>
+                      ) : null;
+                    })()
+                  )}
                 </div>
               )}
             </CardContent>
@@ -727,6 +780,12 @@ export function BookingForm({
                       <div className="flex justify-between text-sm">
                         <span className="ml-2">Late Check-out</span>
                         <span>+${additionalFees.lateCheckOutFee}</span>
+                      </div>
+                    )}
+                    {additionalFees.over24HoursPenalty > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="ml-2">Over 24hr Penalty</span>
+                        <span>+${additionalFees.over24HoursPenalty}</span>
                       </div>
                     )}
                   </div>

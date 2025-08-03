@@ -40,6 +40,7 @@ export interface Booking {
   numberOfNights?: number; // calculated field for range bookings
   earlyCheckInFee?: number; // Additional fee for early check-in
   lateCheckOutFee?: number; // Additional fee for late check-out
+  over24HoursPenalty?: number; // Additional penalty for stays over 24 hours with custom times
   isEarlyCheckIn?: boolean; // Whether this booking includes early check-in
   isLateCheckOut?: boolean; // Whether this booking includes late check-out
 }

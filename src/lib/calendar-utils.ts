@@ -228,23 +228,67 @@ export function isLateCheckOut(checkOutTime: string | undefined, standardCheckOu
   return checkOut > standard;
 }
 
+// Calculate if stay duration exceeds 24 hours when using custom times
+export function calculateStayDuration(
+  checkInDate: string,
+  checkOutDate: string,
+  checkInTime: string | undefined,
+  checkOutTime: string | undefined
+): number {
+  if (!checkInTime || !checkOutTime) return 0;
+  
+  const checkIn = new Date(`${checkInDate}T${checkInTime}:00`);
+  const checkOut = new Date(`${checkOutDate}T${checkOutTime}:00`);
+  
+  const durationMs = checkOut.getTime() - checkIn.getTime();
+  const durationHours = durationMs / (1000 * 60 * 60); // Convert to hours
+  
+  return durationHours;
+}
+
+export function isStayOver24Hours(
+  checkInDate: string,
+  checkOutDate: string,
+  checkInTime: string | undefined,
+  checkOutTime: string | undefined
+): boolean {
+  const duration = calculateStayDuration(checkInDate, checkOutDate, checkInTime, checkOutTime);
+  return duration > 24;
+}
+
 export function calculateAdditionalFees(
   checkInTime: string | undefined,
   checkOutTime: string | undefined,
   standardCheckInTime: string | undefined,
   standardCheckOutTime: string | undefined,
   earlyCheckInFee: number,
-  lateCheckOutFee: number
-): { earlyCheckInFee: number; lateCheckOutFee: number; totalAdditionalFees: number } {
+  lateCheckOutFee: number,
+  checkInDate?: string,
+  checkOutDate?: string,
+  dayPrice?: number
+): { 
+  earlyCheckInFee: number; 
+  lateCheckOutFee: number; 
+  over24HoursPenalty: number;
+  totalAdditionalFees: number 
+} {
   const earlyCheckIn = isEarlyCheckIn(checkInTime, standardCheckInTime);
   const lateCheckOut = isLateCheckOut(checkOutTime, standardCheckOutTime);
   
   const earlyFee = earlyCheckIn ? earlyCheckInFee : 0;
   const lateFee = lateCheckOut ? lateCheckOutFee : 0;
   
+  // Calculate over 24 hours penalty when custom times are used
+  let over24HoursPenalty = 0;
+  if (checkInDate && checkOutDate && checkInTime && checkOutTime && dayPrice) {
+    const isOver24Hours = isStayOver24Hours(checkInDate, checkOutDate, checkInTime, checkOutTime);
+    over24HoursPenalty = isOver24Hours ? dayPrice : 0;
+  }
+  
   return {
     earlyCheckInFee: earlyFee,
     lateCheckOutFee: lateFee,
-    totalAdditionalFees: earlyFee + lateFee
+    over24HoursPenalty,
+    totalAdditionalFees: earlyFee + lateFee + over24HoursPenalty
   };
 }
