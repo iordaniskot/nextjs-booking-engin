@@ -26,6 +26,7 @@ interface BookingFormProps {
   onCancel: () => void;
   isSubmitting?: boolean;
   allowRangeBooking?: boolean;
+  minimumNights?: number; // Add minimum nights prop
 }
 
 export function BookingForm({ 
@@ -34,7 +35,8 @@ export function BookingForm({
   onSubmit, 
   onCancel,
   isSubmitting = false,
-  allowRangeBooking = false
+  allowRangeBooking = false,
+  minimumNights = 1
 }: BookingFormProps) {
   // Get the availability for the selected date first
   const initialDayAvailability = Array.isArray(availability) 
@@ -161,7 +163,7 @@ export function BookingForm({
 
   const isFormValid = formData.customerName && formData.customerEmail && 
     (!dayAvailability?.useHourlyBooking || selectedTimeSlot) &&
-    (!allowRangeBooking || (formData.checkInDate && formData.checkOutDate));
+    (!allowRangeBooking || (formData.checkInDate && formData.checkOutDate && numberOfNights >= minimumNights));
 
   const numberOfNights = allowRangeBooking && formData.checkInDate && formData.checkOutDate 
     ? calculateNumberOfNights(formData.checkInDate, formData.checkOutDate)
@@ -215,7 +217,8 @@ export function BookingForm({
             <CardContent>
               <div className="bg-muted/50 p-3 rounded-lg">
                 <p className="text-sm text-muted-foreground">
-                  Select your check-in and check-out dates for your stay. Perfect for extended bookings!
+                  Select your check-in and check-out dates for your stay. 
+                  {minimumNights > 1 && ` Minimum stay: ${minimumNights} nights.`}
                 </p>
               </div>
             </CardContent>
@@ -273,13 +276,21 @@ export function BookingForm({
                   <div className="bg-muted p-4 rounded-lg space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">Stay Duration</span>
-                      <Badge variant="secondary" className="text-sm">
+                      <Badge 
+                        variant={numberOfNights >= minimumNights ? "secondary" : "destructive"} 
+                        className="text-sm"
+                      >
                         {numberOfNights} {numberOfNights === 1 ? 'night' : 'nights'}
                       </Badge>
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {formatDateRange(formData.checkInDate, formData.checkOutDate)}
                     </div>
+                    {numberOfNights < minimumNights && (
+                      <div className="text-sm text-destructive font-medium">
+                        ⚠ Minimum stay is {minimumNights} nights. Please extend your stay.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

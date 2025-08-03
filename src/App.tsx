@@ -53,6 +53,7 @@ function App() {
     defaultQuantity: 5,
     useHourlyBooking: false,
     allowRangeBooking: true, // Enable range booking by default for hotel-style bookings
+    minimumNights: 2, // Minimum 2 nights for multi-day bookings
     workingHours: { start: '09:00', end: '17:00' },
     slotDuration: 60,
     advanceBookingDays: 365, // Allow booking up to a year in advance
@@ -143,6 +144,14 @@ function App() {
 
       // For range bookings, validate all dates in the range
       if (bookingData.isRangeBooking && bookingData.checkInDate && bookingData.checkOutDate) {
+        const numberOfNights = calculateNumberOfNights(bookingData.checkInDate, bookingData.checkOutDate);
+        
+        // Check minimum nights requirement
+        if (settings?.minimumNights && numberOfNights < settings.minimumNights) {
+          toast.error(`Minimum stay is ${settings.minimumNights} nights. Your booking is ${numberOfNights} nights.`);
+          return;
+        }
+        
         const datesInRange = generateDateRange(bookingData.checkInDate, bookingData.checkOutDate);
         
         // Check availability for all dates in range
@@ -160,7 +169,6 @@ function App() {
           }
         }
 
-        const numberOfNights = calculateNumberOfNights(bookingData.checkInDate, bookingData.checkOutDate);
         const totalPrice = calculateBookingPrice(bookingData) * numberOfNights;
 
         const newBooking: Booking = {
@@ -380,7 +388,7 @@ function App() {
             </h1>
             <p className="text-muted-foreground">
               {settings?.allowRangeBooking 
-                ? 'Book your stay with easy check-in and check-out dates'
+                ? `Book your stay with easy check-in and check-out dates${settings?.minimumNights && settings.minimumNights > 1 ? ` (minimum ${settings.minimumNights} nights)` : ''}`
                 : 'Manage your bookings and availability'
               }
             </p>
@@ -545,6 +553,7 @@ function App() {
                   setSelectedDate(undefined);
                 }}
                 allowRangeBooking={settings?.allowRangeBooking || false}
+                minimumNights={settings?.minimumNights || 1}
               />
             )}
           </DialogContent>
@@ -603,6 +612,22 @@ function App() {
                 />
                 <Label htmlFor="allowRangeBooking">Allow Multi-day Bookings</Label>
               </div>
+
+              {settings?.allowRangeBooking && (
+                <div className="space-y-2">
+                  <Label htmlFor="minimumNights">Minimum Nights</Label>
+                  <Input
+                    id="minimumNights"
+                    type="number"
+                    min="1"
+                    value={settings?.minimumNights || 1}
+                    onChange={(e) => setSettings(prev => ({ ...prev!, minimumNights: parseInt(e.target.value) || 1 }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Minimum number of nights required for multi-day bookings
+                  </p>
+                </div>
+              )}
               
               <Button onClick={() => setShowSettings(false)} className="w-full">
                 Save Settings

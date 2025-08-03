@@ -44,6 +44,7 @@ export interface BookingSettings {
   defaultQuantity: number;
   useHourlyBooking: boolean;
   allowRangeBooking: boolean; // new setting for multi-day bookings
+  minimumNights: number; // minimum nights required for multi-day bookings
   workingHours: {
     start: string; // HH:MM format
     end: string; // HH:MM format
