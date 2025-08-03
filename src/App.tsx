@@ -611,7 +611,7 @@ function App() {
 
         {/* Settings Dialog */}
         <Dialog open={showSettings} onOpenChange={setShowSettings}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="w-[90vw] max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Booking Settings</DialogTitle>
             </DialogHeader>
@@ -783,9 +783,11 @@ function App() {
                 </div>
               )}
               
-              <Button onClick={() => setShowSettings(false)} className="w-full">
-                Save Settings
-              </Button>
+              <div className="pt-4 border-t">
+                <Button onClick={() => setShowSettings(false)} className="w-full">
+                  Save Settings
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
