@@ -15,7 +15,10 @@ import {
   formatTimeForDisplay, 
   calculateNumberOfNights, 
   generateDateRange,
-  formatDateRange 
+  formatDateRange,
+  isEarlyCheckIn,
+  isLateCheckOut,
+  calculateAdditionalFees
 } from '@/lib/calendar-utils';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +33,10 @@ interface BookingFormProps {
   checkInTime?: string; // Default check-in time
   checkOutTime?: string; // Default check-out time
   requireCheckInOutTimes?: boolean; // Whether to enforce default times
+  earlyCheckInEnabled?: boolean; // Whether early check-in is available
+  lateCheckOutEnabled?: boolean; // Whether late check-out is available
+  earlyCheckInFee?: number; // Fee for early check-in
+  lateCheckOutFee?: number; // Fee for late check-out
 }
 
 export function BookingForm({ 
@@ -42,7 +49,11 @@ export function BookingForm({
   minimumNights = 1,
   checkInTime,
   checkOutTime,
-  requireCheckInOutTimes = false
+  requireCheckInOutTimes = false,
+  earlyCheckInEnabled = false,
+  lateCheckOutEnabled = false,
+  earlyCheckInFee = 0,
+  lateCheckOutFee = 0
 }: BookingFormProps) {
   // Get the availability for the selected date first
   const initialDayAvailability = Array.isArray(availability) 
@@ -63,11 +74,14 @@ export function BookingForm({
     customerEmail: '',
     customerPhone: '',
     notes: '',
-    isRangeBooking: allowRangeBooking
+    isRangeBooking: allowRangeBooking,
+    isEarlyCheckIn: false,
+    isLateCheckOut: false
   });
 
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [totalPrice, setTotalPrice] = useState(0);
+  const [additionalFees, setAdditionalFees] = useState({ earlyCheckInFee: 0, lateCheckOutFee: 0, totalAdditionalFees: 0 });
 
   // Get the availability for the selected/check-in date
   const dayAvailability = Array.isArray(availability) 
@@ -76,7 +90,7 @@ export function BookingForm({
 
   useEffect(() => {
     calculateTotalPrice();
-  }, [formData.quantity, formData.checkInDate, formData.checkOutDate, selectedTimeSlot, allowRangeBooking]);
+  }, [formData.quantity, formData.checkInDate, formData.checkOutDate, formData.checkInTime, formData.checkOutTime, formData.isEarlyCheckIn, formData.isLateCheckOut, selectedTimeSlot, allowRangeBooking]);
 
   useEffect(() => {
     setFormData(prev => ({
@@ -89,19 +103,36 @@ export function BookingForm({
   const calculateTotalPrice = () => {
     if (!dayAvailability) {
       setTotalPrice(0);
+      setAdditionalFees({ earlyCheckInFee: 0, lateCheckOutFee: 0, totalAdditionalFees: 0 });
       return;
     }
 
     const pricePerUnit = selectedTimeSlot?.price || dayAvailability.basePrice;
+    let basePrice = 0;
     
     if (allowRangeBooking && formData.checkInDate && formData.checkOutDate) {
       const nights = calculateNumberOfNights(formData.checkInDate, formData.checkOutDate);
-      const total = pricePerUnit * formData.quantity * nights;
-      setTotalPrice(total);
+      basePrice = pricePerUnit * formData.quantity * nights;
     } else {
-      const total = pricePerUnit * formData.quantity;
-      setTotalPrice(total);
+      basePrice = pricePerUnit * formData.quantity;
     }
+
+    // Calculate additional fees for early check-in and late check-out
+    let calculatedFees = { earlyCheckInFee: 0, lateCheckOutFee: 0, totalAdditionalFees: 0 };
+    
+    if (allowRangeBooking) {
+      // Only calculate fees if early/late options are explicitly selected
+      if (formData.isEarlyCheckIn && earlyCheckInEnabled) {
+        calculatedFees.earlyCheckInFee = earlyCheckInFee;
+      }
+      if (formData.isLateCheckOut && lateCheckOutEnabled) {
+        calculatedFees.lateCheckOutFee = lateCheckOutFee;
+      }
+      calculatedFees.totalAdditionalFees = calculatedFees.earlyCheckInFee + calculatedFees.lateCheckOutFee;
+    }
+
+    setAdditionalFees(calculatedFees);
+    setTotalPrice(basePrice + calculatedFees.totalAdditionalFees);
   };
 
   const handleTimeSlotSelect = (timeSlot: TimeSlot) => {
@@ -159,7 +190,9 @@ export function BookingForm({
       endTime: selectedTimeSlot?.endTime || formData.endTime,
       checkInTime: allowRangeBooking ? (formData.checkInTime || checkInTime) : undefined,
       checkOutTime: allowRangeBooking ? (formData.checkOutTime || checkOutTime) : undefined,
-      isRangeBooking: allowRangeBooking
+      isRangeBooking: allowRangeBooking,
+      isEarlyCheckIn: allowRangeBooking ? formData.isEarlyCheckIn : false,
+      isLateCheckOut: allowRangeBooking ? formData.isLateCheckOut : false
     };
 
     onSubmit(submissionData);
@@ -402,6 +435,72 @@ export function BookingForm({
           </Card>
         )}
 
+        {/* Early Check-in and Late Check-out Options - Only for range bookings */}
+        {allowRangeBooking && (earlyCheckInEnabled || lateCheckOutEnabled) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign size={20} />
+                Additional Services
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {earlyCheckInEnabled && (
+                  <div className="flex items-center space-x-3 p-3 border rounded-lg">
+                    <Switch
+                      id="earlyCheckIn"
+                      checked={formData.isEarlyCheckIn || false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isEarlyCheckIn: checked }))}
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="earlyCheckIn" className="text-sm font-medium cursor-pointer">
+                        Early Check-in
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Check in before {checkInTime ? formatTimeForDisplay(checkInTime) : 'standard time'} - Additional ${earlyCheckInFee}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      +${earlyCheckInFee}
+                    </Badge>
+                  </div>
+                )}
+
+                {lateCheckOutEnabled && (
+                  <div className="flex items-center space-x-3 p-3 border rounded-lg">
+                    <Switch
+                      id="lateCheckOut"
+                      checked={formData.isLateCheckOut || false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isLateCheckOut: checked }))}
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="lateCheckOut" className="text-sm font-medium cursor-pointer">
+                        Late Check-out
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Check out after {checkOutTime ? formatTimeForDisplay(checkOutTime) : 'standard time'} - Additional ${lateCheckOutFee}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      +${lateCheckOutFee}
+                    </Badge>
+                  </div>
+                )}
+
+                {(formData.isEarlyCheckIn || formData.isLateCheckOut) && (
+                  <div className="bg-accent/10 p-3 rounded-lg border-l-4 border-accent">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Additional Services Total:</span>
+                      <span className="text-sm font-semibold text-accent">+${additionalFees.totalAdditionalFees}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Time Slot Selection */}
         {dayAvailability.useHourlyBooking && dayAvailability.timeSlots && (
           <Card>
@@ -610,6 +709,28 @@ export function BookingForm({
                   <span>Number of nights:</span>
                   <span>{numberOfNights}</span>
                 </div>
+              )}
+              
+              {/* Additional fees section */}
+              {allowRangeBooking && additionalFees.totalAdditionalFees > 0 && (
+                <>
+                  <Separator />
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-muted-foreground">Additional Services:</div>
+                    {additionalFees.earlyCheckInFee > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="ml-2">Early Check-in</span>
+                        <span>+${additionalFees.earlyCheckInFee}</span>
+                      </div>
+                    )}
+                    {additionalFees.lateCheckOutFee > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="ml-2">Late Check-out</span>
+                        <span>+${additionalFees.lateCheckOutFee}</span>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
               
               <Separator />

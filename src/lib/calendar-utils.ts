@@ -208,3 +208,43 @@ export function isDateInRange(date: string, checkInDate: string, checkOutDate: s
   
   return targetDate >= checkIn && targetDate < checkOut;
 }
+
+// Early check-in and late check-out utilities
+export function isEarlyCheckIn(checkInTime: string | undefined, standardCheckInTime: string | undefined): boolean {
+  if (!checkInTime || !standardCheckInTime) return false;
+  
+  const checkIn = new Date(`1970-01-01T${checkInTime}:00`);
+  const standard = new Date(`1970-01-01T${standardCheckInTime}:00`);
+  
+  return checkIn < standard;
+}
+
+export function isLateCheckOut(checkOutTime: string | undefined, standardCheckOutTime: string | undefined): boolean {
+  if (!checkOutTime || !standardCheckOutTime) return false;
+  
+  const checkOut = new Date(`1970-01-01T${checkOutTime}:00`);
+  const standard = new Date(`1970-01-01T${standardCheckOutTime}:00`);
+  
+  return checkOut > standard;
+}
+
+export function calculateAdditionalFees(
+  checkInTime: string | undefined,
+  checkOutTime: string | undefined,
+  standardCheckInTime: string | undefined,
+  standardCheckOutTime: string | undefined,
+  earlyCheckInFee: number,
+  lateCheckOutFee: number
+): { earlyCheckInFee: number; lateCheckOutFee: number; totalAdditionalFees: number } {
+  const earlyCheckIn = isEarlyCheckIn(checkInTime, standardCheckInTime);
+  const lateCheckOut = isLateCheckOut(checkOutTime, standardCheckOutTime);
+  
+  const earlyFee = earlyCheckIn ? earlyCheckInFee : 0;
+  const lateFee = lateCheckOut ? lateCheckOutFee : 0;
+  
+  return {
+    earlyCheckInFee: earlyFee,
+    lateCheckOutFee: lateFee,
+    totalAdditionalFees: earlyFee + lateFee
+  };
+}

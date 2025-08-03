@@ -38,6 +38,10 @@ export interface Booking {
   updatedAt: string;
   isRangeBooking?: boolean; // true if this is a multi-day booking
   numberOfNights?: number; // calculated field for range bookings
+  earlyCheckInFee?: number; // Additional fee for early check-in
+  lateCheckOutFee?: number; // Additional fee for late check-out
+  isEarlyCheckIn?: boolean; // Whether this booking includes early check-in
+  isLateCheckOut?: boolean; // Whether this booking includes late check-out
 }
 
 export interface BookingSettings {
@@ -57,6 +61,10 @@ export interface BookingSettings {
   checkInTime?: string; // Default check-in time for multi-day bookings (HH:MM format)
   checkOutTime?: string; // Default check-out time for multi-day bookings (HH:MM format)
   requireCheckInOutTimes: boolean; // Whether to enforce check-in/out times for range bookings
+  earlyCheckInFee: number; // Fee for checking in before standard time
+  lateCheckOutFee: number; // Fee for checking out after standard time
+  earlyCheckInEnabled: boolean; // Whether early check-in is available
+  lateCheckOutEnabled: boolean; // Whether late check-out is available
 }
 
 export interface CalendarEvent {
@@ -86,4 +94,6 @@ export interface BookingFormData {
   customerPhone?: string;
   notes?: string;
   isRangeBooking?: boolean;
+  isEarlyCheckIn?: boolean; // Whether early check-in is requested
+  isLateCheckOut?: boolean; // Whether late check-out is requested
 }

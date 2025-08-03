@@ -41,7 +41,10 @@ import {
   calculateNumberOfNights,
   generateDateRange,
   formatDateRange,
-  isDateInRange
+  isDateInRange,
+  isEarlyCheckIn,
+  isLateCheckOut,
+  calculateAdditionalFees
 } from '@/lib/calendar-utils';
 
 function App() {
@@ -60,7 +63,11 @@ function App() {
     timezone: 'UTC',
     checkInTime: '14:00', // Default 2 PM check-in
     checkOutTime: '10:00', // Default 10 AM check-out
-    requireCheckInOutTimes: false // Allow manual time selection if no defaults
+    requireCheckInOutTimes: false, // Allow manual time selection if no defaults
+    earlyCheckInFee: 50, // Default $50 for early check-in
+    lateCheckOutFee: 50, // Default $50 for late check-out
+    earlyCheckInEnabled: true, // Allow early check-in by default
+    lateCheckOutEnabled: true // Allow late check-out by default
   });
 
   const [selectedDate, setSelectedDate] = useState<string | undefined>();
@@ -174,6 +181,18 @@ function App() {
 
         const totalPrice = calculateBookingPrice(bookingData) * numberOfNights;
 
+        // Calculate additional fees for early check-in and late check-out
+        const additionalFees = calculateAdditionalFees(
+          bookingData.checkInTime,
+          bookingData.checkOutTime,
+          settings.checkInTime,
+          settings.checkOutTime,
+          settings.earlyCheckInFee || 0,
+          settings.lateCheckOutFee || 0
+        );
+
+        const finalTotalPrice = totalPrice + additionalFees.totalAdditionalFees;
+
         const newBooking: Booking = {
           id: `booking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           date: bookingData.checkInDate, // Use check-in date as primary date
@@ -184,7 +203,7 @@ function App() {
           startTime: bookingData.startTime,
           endTime: bookingData.endTime,
           quantity: bookingData.quantity,
-          totalPrice,
+          totalPrice: finalTotalPrice,
           customerName: bookingData.customerName,
           customerEmail: bookingData.customerEmail,
           customerPhone: bookingData.customerPhone,
@@ -193,7 +212,11 @@ function App() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           isRangeBooking: true,
-          numberOfNights
+          numberOfNights,
+          earlyCheckInFee: additionalFees.earlyCheckInFee,
+          lateCheckOutFee: additionalFees.lateCheckOutFee,
+          isEarlyCheckIn: bookingData.isEarlyCheckIn,
+          isLateCheckOut: bookingData.isLateCheckOut
         };
 
         setBookings(currentBookings => [...currentBookings, newBooking]);
@@ -519,6 +542,12 @@ function App() {
                             <div className="text-sm text-muted-foreground">
                               Quantity: {booking.quantity} • Total: ${booking.totalPrice}
                               {booking.isRangeBooking && booking.numberOfNights && ` • ${booking.numberOfNights} nights`}
+                              {(booking.earlyCheckInFee || booking.lateCheckOutFee) && (
+                                <span className="text-accent">
+                                  {booking.earlyCheckInFee && ` • Early check-in: +$${booking.earlyCheckInFee}`}
+                                  {booking.lateCheckOutFee && ` • Late check-out: +$${booking.lateCheckOutFee}`}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="flex flex-col items-end gap-1">
@@ -571,6 +600,10 @@ function App() {
                 checkInTime={settings?.checkInTime}
                 checkOutTime={settings?.checkOutTime}
                 requireCheckInOutTimes={settings?.requireCheckInOutTimes || false}
+                earlyCheckInEnabled={settings?.earlyCheckInEnabled || false}
+                lateCheckOutEnabled={settings?.lateCheckOutEnabled || false}
+                earlyCheckInFee={settings?.earlyCheckInFee || 0}
+                lateCheckOutFee={settings?.lateCheckOutFee || 0}
               />
             )}
           </DialogContent>
@@ -687,6 +720,64 @@ function App() {
                           When enabled, customers must use default times. When disabled, customers can set custom times.
                         </p>
                       </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium">Early Check-in & Late Check-out Fees</h4>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="earlyCheckInEnabled"
+                          checked={settings?.earlyCheckInEnabled || false}
+                          onCheckedChange={(checked) => setSettings(prev => ({ ...prev!, earlyCheckInEnabled: checked }))}
+                        />
+                        <Label htmlFor="earlyCheckInEnabled">Enable Early Check-in</Label>
+                      </div>
+
+                      {settings?.earlyCheckInEnabled && (
+                        <div className="space-y-2 ml-6">
+                          <Label htmlFor="earlyCheckInFee">Early Check-in Fee ($)</Label>
+                          <Input
+                            id="earlyCheckInFee"
+                            type="number"
+                            min="0"
+                            value={settings?.earlyCheckInFee || 0}
+                            onChange={(e) => setSettings(prev => ({ ...prev!, earlyCheckInFee: parseInt(e.target.value) || 0 }))}
+                            placeholder="50"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Additional fee for checking in before {settings?.checkInTime ? formatTimeForDisplay(settings.checkInTime) : 'standard time'}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="lateCheckOutEnabled"
+                          checked={settings?.lateCheckOutEnabled || false}
+                          onCheckedChange={(checked) => setSettings(prev => ({ ...prev!, lateCheckOutEnabled: checked }))}
+                        />
+                        <Label htmlFor="lateCheckOutEnabled">Enable Late Check-out</Label>
+                      </div>
+
+                      {settings?.lateCheckOutEnabled && (
+                        <div className="space-y-2 ml-6">
+                          <Label htmlFor="lateCheckOutFee">Late Check-out Fee ($)</Label>
+                          <Input
+                            id="lateCheckOutFee"
+                            type="number"
+                            min="0"
+                            value={settings?.lateCheckOutFee || 0}
+                            onChange={(e) => setSettings(prev => ({ ...prev!, lateCheckOutFee: parseInt(e.target.value) || 0 }))}
+                            placeholder="50"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Additional fee for checking out after {settings?.checkOutTime ? formatTimeForDisplay(settings.checkOutTime) : 'standard time'}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
