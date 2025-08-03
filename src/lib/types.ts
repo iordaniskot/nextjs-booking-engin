@@ -20,7 +20,9 @@ export interface DayAvailability {
 
 export interface Booking {
   id: string;
-  date: string; // YYYY-MM-DD format
+  date: string; // YYYY-MM-DD format (check-in date for range bookings)
+  checkInDate?: string; // YYYY-MM-DD format
+  checkOutDate?: string; // YYYY-MM-DD format
   startTime?: string; // HH:MM format (optional for all-day bookings)
   endTime?: string; // HH:MM format
   quantity: number;
@@ -32,6 +34,8 @@ export interface Booking {
   status: 'confirmed' | 'pending' | 'cancelled';
   createdAt: string;
   updatedAt: string;
+  isRangeBooking?: boolean; // true if this is a multi-day booking
+  numberOfNights?: number; // calculated field for range bookings
 }
 
 export interface BookingSettings {
@@ -39,6 +43,7 @@ export interface BookingSettings {
   defaultPrice: number;
   defaultQuantity: number;
   useHourlyBooking: boolean;
+  allowRangeBooking: boolean; // new setting for multi-day bookings
   workingHours: {
     start: string; // HH:MM format
     end: string; // HH:MM format
@@ -63,6 +68,8 @@ export type ViewMode = 'month' | 'week' | 'day';
 
 export interface BookingFormData {
   date: string;
+  checkInDate?: string;
+  checkOutDate?: string;
   startTime?: string;
   endTime?: string;
   quantity: number;
@@ -70,4 +77,5 @@ export interface BookingFormData {
   customerEmail: string;
   customerPhone?: string;
   notes?: string;
+  isRangeBooking?: boolean;
 }

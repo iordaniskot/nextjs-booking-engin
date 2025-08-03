@@ -37,7 +37,11 @@ import {
   parseICalFile, 
   generateTimeSlots,
   formatDateForDisplay,
-  formatTimeForDisplay 
+  formatTimeForDisplay,
+  calculateNumberOfNights,
+  generateDateRange,
+  formatDateRange,
+  isDateInRange
 } from '@/lib/calendar-utils';
 
 function App() {
@@ -48,6 +52,7 @@ function App() {
     defaultPrice: 100,
     defaultQuantity: 10,
     useHourlyBooking: false,
+    allowRangeBooking: true, // Enable range booking by default
     workingHours: { start: '09:00', end: '17:00' },
     slotDuration: 60,
     advanceBookingDays: 90,
@@ -136,6 +141,70 @@ function App() {
         return;
       }
 
+      // For range bookings, validate all dates in the range
+      if (bookingData.isRangeBooking && bookingData.checkInDate && bookingData.checkOutDate) {
+        const datesInRange = generateDateRange(bookingData.checkInDate, bookingData.checkOutDate);
+        
+        // Check availability for all dates in range
+        for (const dateInRange of datesInRange) {
+          const dayAvailability = availability.find(day => day.date === dateInRange);
+          if (!dayAvailability || !dayAvailability.isAvailable) {
+            toast.error(`Date ${formatDateForDisplay(dateInRange)} is not available for booking`);
+            return;
+          }
+          
+          // Check capacity for each date
+          if ((dayAvailability.maxQuantity - dayAvailability.bookedQuantity) < bookingData.quantity) {
+            toast.error(`Not enough capacity available for ${formatDateForDisplay(dateInRange)}`);
+            return;
+          }
+        }
+
+        const numberOfNights = calculateNumberOfNights(bookingData.checkInDate, bookingData.checkOutDate);
+        const totalPrice = calculateBookingPrice(bookingData) * numberOfNights;
+
+        const newBooking: Booking = {
+          id: `booking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          date: bookingData.checkInDate, // Use check-in date as primary date
+          checkInDate: bookingData.checkInDate,
+          checkOutDate: bookingData.checkOutDate,
+          startTime: bookingData.startTime,
+          endTime: bookingData.endTime,
+          quantity: bookingData.quantity,
+          totalPrice,
+          customerName: bookingData.customerName,
+          customerEmail: bookingData.customerEmail,
+          customerPhone: bookingData.customerPhone,
+          notes: bookingData.notes,
+          status: 'confirmed',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          isRangeBooking: true,
+          numberOfNights
+        };
+
+        setBookings(currentBookings => [...currentBookings, newBooking]);
+        
+        // Update availability for all dates in range
+        setAvailability(currentAvailability => 
+          currentAvailability.map(day => {
+            if (datesInRange.includes(day.date)) {
+              return {
+                ...day,
+                bookedQuantity: day.bookedQuantity + bookingData.quantity
+              };
+            }
+            return day;
+          })
+        );
+
+        setShowBookingForm(false);
+        setSelectedDate(undefined);
+        toast.success(`Range booking confirmed: ${formatDateRange(bookingData.checkInDate, bookingData.checkOutDate)}`);
+        return;
+      }
+
+      // Single day booking logic (existing logic)
       const dayAvailability = availability.find(day => day.date === bookingData.date);
       if (!dayAvailability || !dayAvailability.isAvailable) {
         toast.error('Selected date is not available for booking');
@@ -162,11 +231,19 @@ function App() {
 
       const newBooking: Booking = {
         id: `booking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        ...bookingData,
+        date: bookingData.date,
+        startTime: bookingData.startTime,
+        endTime: bookingData.endTime,
+        quantity: bookingData.quantity,
         totalPrice: calculateBookingPrice(bookingData),
+        customerName: bookingData.customerName,
+        customerEmail: bookingData.customerEmail,
+        customerPhone: bookingData.customerPhone,
+        notes: bookingData.notes,
         status: 'confirmed',
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        isRangeBooking: false
       };
 
       setBookings(currentBookings => [...currentBookings, newBooking]);
@@ -207,7 +284,10 @@ function App() {
   };
 
   const calculateBookingPrice = (bookingData: BookingFormData): number => {
-    const dayAvailability = availability.find(day => day.date === bookingData.date);
+    const targetDate = bookingData.isRangeBooking ? bookingData.checkInDate : bookingData.date;
+    if (!targetDate) return 0;
+    
+    const dayAvailability = availability.find(day => day.date === targetDate);
     if (!dayAvailability) return 0;
 
     if (dayAvailability.useHourlyBooking && dayAvailability.timeSlots && bookingData.startTime) {
@@ -219,16 +299,31 @@ function App() {
   };
 
   const handleExportBookings = () => {
-    const events = bookings.map(booking => ({
-      summary: `Booking - ${booking.customerName}`,
-      description: `Customer: ${booking.customerName}\nEmail: ${booking.customerEmail}\nPhone: ${booking.customerPhone || 'N/A'}\nQuantity: ${booking.quantity}\nTotal: $${booking.totalPrice}\nNotes: ${booking.notes || 'N/A'}`,
-      startDate: booking.date,
-      endDate: booking.date,
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-      allDay: !booking.startTime,
-      location: settings?.businessName || 'Booking Location'
-    }));
+    const events = bookings.map(booking => {
+      if (booking.isRangeBooking && booking.checkInDate && booking.checkOutDate) {
+        // For range bookings, create a multi-day event
+        return {
+          summary: `Booking - ${booking.customerName} (${booking.numberOfNights} nights)`,
+          description: `Customer: ${booking.customerName}\nEmail: ${booking.customerEmail}\nPhone: ${booking.customerPhone || 'N/A'}\nQuantity: ${booking.quantity}\nTotal: $${booking.totalPrice}\nNotes: ${booking.notes || 'N/A'}\nCheck-in: ${formatDateForDisplay(booking.checkInDate)}\nCheck-out: ${formatDateForDisplay(booking.checkOutDate)}`,
+          startDate: booking.checkInDate,
+          endDate: booking.checkOutDate,
+          allDay: true, // Range bookings are typically all-day
+          location: settings?.businessName || 'Booking Location'
+        };
+      } else {
+        // Single day booking
+        return {
+          summary: `Booking - ${booking.customerName}`,
+          description: `Customer: ${booking.customerName}\nEmail: ${booking.customerEmail}\nPhone: ${booking.customerPhone || 'N/A'}\nQuantity: ${booking.quantity}\nTotal: $${booking.totalPrice}\nNotes: ${booking.notes || 'N/A'}`,
+          startDate: booking.date,
+          endDate: booking.date,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          allDay: !booking.startTime,
+          location: settings?.businessName || 'Booking Location'
+        };
+      }
+    });
 
     generateICalFile(events, 'bookings.ics');
     toast.success('Bookings exported successfully');
@@ -268,10 +363,6 @@ function App() {
     };
     reader.readAsText(file);
   };
-
-  const selectedDayAvailability = selectedDate 
-    ? availability.find(day => day.date === selectedDate)
-    : undefined;
 
   const totalRevenue = bookings.reduce((sum, booking) => sum + booking.totalPrice, 0);
   const todayBookings = bookings.filter(booking => 
@@ -395,16 +486,27 @@ function App() {
                           <div>
                             <div className="font-medium">{booking.customerName}</div>
                             <div className="text-sm text-muted-foreground">
-                              {formatDateForDisplay(booking.date)}
+                              {booking.isRangeBooking && booking.checkInDate && booking.checkOutDate
+                                ? formatDateRange(booking.checkInDate, booking.checkOutDate)
+                                : formatDateForDisplay(booking.date)
+                              }
                               {booking.startTime && ` at ${formatTimeForDisplay(booking.startTime)}`}
                             </div>
                             <div className="text-sm text-muted-foreground">
                               Quantity: {booking.quantity} • Total: ${booking.totalPrice}
+                              {booking.isRangeBooking && booking.numberOfNights && ` • ${booking.numberOfNights} nights`}
                             </div>
                           </div>
-                          <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
-                            {booking.status}
-                          </Badge>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
+                              {booking.status}
+                            </Badge>
+                            {booking.isRangeBooking && (
+                              <Badge variant="outline" className="text-xs">
+                                Multi-day
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       ))}
                   </div>
@@ -431,15 +533,16 @@ function App() {
         {/* Booking Form Dialog */}
         <Dialog open={showBookingForm} onOpenChange={setShowBookingForm}>
           <DialogContent className="w-[95vw] max-w-none max-h-[90vh] overflow-y-auto">
-            {selectedDate && selectedDayAvailability && (
+            {selectedDate && (
               <BookingForm
                 selectedDate={selectedDate}
-                availability={selectedDayAvailability}
+                availability={availability}
                 onSubmit={handleBookingSubmit}
                 onCancel={() => {
                   setShowBookingForm(false);
                   setSelectedDate(undefined);
                 }}
+                allowRangeBooking={settings?.allowRangeBooking || false}
               />
             )}
           </DialogContent>
@@ -488,6 +591,15 @@ function App() {
                   onCheckedChange={(checked) => setSettings(prev => ({ ...prev!, useHourlyBooking: checked }))}
                 />
                 <Label htmlFor="useHourlyBooking">Enable Hourly Booking</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="allowRangeBooking"
+                  checked={settings?.allowRangeBooking || false}
+                  onCheckedChange={(checked) => setSettings(prev => ({ ...prev!, allowRangeBooking: checked }))}
+                />
+                <Label htmlFor="allowRangeBooking">Allow Multi-day Bookings</Label>
               </div>
               
               <Button onClick={() => setShowSettings(false)} className="w-full">

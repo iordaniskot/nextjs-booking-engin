@@ -172,3 +172,39 @@ export function generateTimeSlots(start: string, end: string, duration: number):
   
   return slots;
 }
+
+// Date range utility functions
+export function calculateNumberOfNights(checkInDate: string, checkOutDate: string): number {
+  const checkIn = new Date(checkInDate);
+  const checkOut = new Date(checkOutDate);
+  const timeDiff = checkOut.getTime() - checkIn.getTime();
+  return Math.ceil(timeDiff / (1000 * 3600 * 24));
+}
+
+export function generateDateRange(startDate: string, endDate: string): string[] {
+  const dates: string[] = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+    dates.push(d.toISOString().split('T')[0]);
+  }
+  
+  return dates;
+}
+
+export function formatDateRange(checkInDate: string, checkOutDate: string): string {
+  const checkIn = formatDateForDisplay(checkInDate);
+  const checkOut = formatDateForDisplay(checkOutDate);
+  const nights = calculateNumberOfNights(checkInDate, checkOutDate);
+  
+  return `${checkIn} - ${checkOut} (${nights} night${nights !== 1 ? 's' : ''})`;
+}
+
+export function isDateInRange(date: string, checkInDate: string, checkOutDate: string): boolean {
+  const targetDate = new Date(date);
+  const checkIn = new Date(checkInDate);
+  const checkOut = new Date(checkOutDate);
+  
+  return targetDate >= checkIn && targetDate < checkOut;
+}
