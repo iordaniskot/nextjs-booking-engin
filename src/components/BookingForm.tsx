@@ -41,10 +41,8 @@ export function BookingForm({
     ? availability.find(day => day.date === selectedDate)
     : availability;
 
-  // For all-day bookings, default to range mode if range booking is allowed
-  const [isRangeMode, setIsRangeMode] = useState(
-    allowRangeBooking && !initialDayAvailability?.useHourlyBooking
-  );
+  // When allowRangeBooking is true, force range mode and don't allow switching
+  const [isRangeMode, setIsRangeMode] = useState(allowRangeBooking);
   
   const [formData, setFormData] = useState<BookingFormData>({
     date: selectedDate,
@@ -55,7 +53,7 @@ export function BookingForm({
     customerEmail: '',
     customerPhone: '',
     notes: '',
-    isRangeBooking: allowRangeBooking && !initialDayAvailability?.useHourlyBooking
+    isRangeBooking: allowRangeBooking
   });
 
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
@@ -63,20 +61,20 @@ export function BookingForm({
 
   // Get the availability for the selected/check-in date
   const dayAvailability = Array.isArray(availability) 
-    ? availability.find(day => day.date === (isRangeMode ? formData.checkInDate : selectedDate))
+    ? availability.find(day => day.date === (allowRangeBooking ? formData.checkInDate : selectedDate))
     : availability;
 
   useEffect(() => {
     calculateTotalPrice();
-  }, [formData.quantity, formData.checkInDate, formData.checkOutDate, selectedTimeSlot, isRangeMode]);
+  }, [formData.quantity, formData.checkInDate, formData.checkOutDate, selectedTimeSlot, allowRangeBooking]);
 
   useEffect(() => {
     setFormData(prev => ({
       ...prev,
-      isRangeBooking: isRangeMode,
-      date: isRangeMode ? prev.checkInDate || selectedDate : selectedDate
+      isRangeBooking: allowRangeBooking,
+      date: allowRangeBooking ? prev.checkInDate || selectedDate : selectedDate
     }));
-  }, [isRangeMode, selectedDate]);
+  }, [allowRangeBooking, selectedDate]);
 
   const calculateTotalPrice = () => {
     if (!dayAvailability) {
@@ -86,7 +84,7 @@ export function BookingForm({
 
     const pricePerUnit = selectedTimeSlot?.price || dayAvailability.basePrice;
     
-    if (isRangeMode && formData.checkInDate && formData.checkOutDate) {
+    if (allowRangeBooking && formData.checkInDate && formData.checkOutDate) {
       const nights = calculateNumberOfNights(formData.checkInDate, formData.checkOutDate);
       const total = pricePerUnit * formData.quantity * nights;
       setTotalPrice(total);
@@ -141,7 +139,7 @@ export function BookingForm({
       return;
     }
 
-    if (isRangeMode && (!formData.checkInDate || !formData.checkOutDate)) {
+    if (allowRangeBooking && (!formData.checkInDate || !formData.checkOutDate)) {
       return;
     }
 
@@ -149,7 +147,7 @@ export function BookingForm({
       ...formData,
       startTime: selectedTimeSlot?.startTime || formData.startTime,
       endTime: selectedTimeSlot?.endTime || formData.endTime,
-      isRangeBooking: isRangeMode
+      isRangeBooking: allowRangeBooking
     };
 
     onSubmit(submissionData);
@@ -163,9 +161,9 @@ export function BookingForm({
 
   const isFormValid = formData.customerName && formData.customerEmail && 
     (!dayAvailability?.useHourlyBooking || selectedTimeSlot) &&
-    (!isRangeMode || (formData.checkInDate && formData.checkOutDate));
+    (!allowRangeBooking || (formData.checkInDate && formData.checkOutDate));
 
-  const numberOfNights = isRangeMode && formData.checkInDate && formData.checkOutDate 
+  const numberOfNights = allowRangeBooking && formData.checkInDate && formData.checkOutDate 
     ? calculateNumberOfNights(formData.checkInDate, formData.checkOutDate)
     : 1;
 
@@ -186,56 +184,39 @@ export function BookingForm({
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Booking Type Selection */}
-        {allowRangeBooking && !dayAvailability?.useHourlyBooking && (
-          <Card className="border-2 border-primary/20 bg-primary/5">
+        {/* Only show booking type selection if range booking is NOT enforced */}
+        {!allowRangeBooking && (
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Bed size={20} className="text-primary" />
-                Booking Type
+                <Calendar size={20} />
+                Single Day Booking
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="range-mode"
-                    checked={isRangeMode}
-                    onCheckedChange={setIsRangeMode}
-                  />
-                  <Label htmlFor="range-mode" className="flex items-center gap-2">
-                    <CalendarBlank size={16} />
-                    Multi-day booking (Check-in/Check-out)
-                  </Label>
-                </div>
-                {isRangeMode && (
-                  <div className="bg-muted/50 p-3 rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      Perfect for extended stays! Select your check-in and check-out dates below.
-                    </p>
-                  </div>
-                )}
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  This booking is for a single day: {formatDateForDisplay(selectedDate)}
+                </p>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {allowRangeBooking && dayAvailability?.useHourlyBooking && (
-          <Card>
+        {/* Range booking is enforced - show information */}
+        {allowRangeBooking && (
+          <Card className="border-2 border-primary/20 bg-primary/5">
             <CardHeader>
-              <CardTitle>Booking Type</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Bed size={20} className="text-primary" />
+                Multi-day Booking
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="range-mode"
-                  checked={isRangeMode}
-                  onCheckedChange={setIsRangeMode}
-                />
-                <Label htmlFor="range-mode" className="flex items-center gap-2">
-                  <CalendarBlank size={16} />
-                  Multi-day booking (Check-in/Check-out)
-                </Label>
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  Select your check-in and check-out dates for your stay. Perfect for extended bookings!
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -243,16 +224,16 @@ export function BookingForm({
 
         {/* Date Selection */}
         <Card className={cn(
-          isRangeMode && "border-2 border-primary/20 bg-primary/5"
+          allowRangeBooking && "border-2 border-primary/20 bg-primary/5"
         )}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              {isRangeMode ? <Bed size={20} className="text-primary" /> : <Calendar size={20} />}
-              {isRangeMode ? 'Check-in & Check-out Dates' : formatDateForDisplay(selectedDate)}
+              {allowRangeBooking ? <Bed size={20} className="text-primary" /> : <Calendar size={20} />}
+              {allowRangeBooking ? 'Check-in & Check-out Dates' : formatDateForDisplay(selectedDate)}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {isRangeMode ? (
+            {allowRangeBooking ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -473,7 +454,7 @@ export function BookingForm({
           </CardHeader>
           <CardContent>
             <div className="bg-background p-4 rounded-lg space-y-3 border">
-              {isRangeMode && formData.checkInDate && formData.checkOutDate && (
+              {allowRangeBooking && formData.checkInDate && formData.checkOutDate && (
                 <div className="space-y-2 pb-3 border-b">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Stay Period:</span>
@@ -487,7 +468,7 @@ export function BookingForm({
               )}
               
               <div className="flex justify-between">
-                <span>Rate per {isRangeMode ? 'night' : 'unit'}:</span>
+                <span>Rate per {allowRangeBooking ? 'night' : 'unit'}:</span>
                 <span>${selectedTimeSlot?.price || dayAvailability?.basePrice || 0}</span>
               </div>
               
@@ -496,7 +477,7 @@ export function BookingForm({
                 <span>{formData.quantity}</span>
               </div>
               
-              {isRangeMode && numberOfNights > 1 && (
+              {allowRangeBooking && numberOfNights > 1 && (
                 <div className="flex justify-between">
                   <span>Number of nights:</span>
                   <span>{numberOfNights}</span>
@@ -510,13 +491,13 @@ export function BookingForm({
                 <span>${totalPrice}</span>
               </div>
               
-              {isRangeMode && numberOfNights > 1 && (
+              {allowRangeBooking && numberOfNights > 1 && (
                 <div className="text-xs text-muted-foreground text-center">
                   ${selectedTimeSlot?.price || dayAvailability?.basePrice || 0} × {formData.quantity} × {numberOfNights} nights
                 </div>
               )}
               
-              {!isRangeMode && (
+              {!allowRangeBooking && (
                 <div className="text-xs text-muted-foreground text-center">
                   ${selectedTimeSlot?.price || dayAvailability?.basePrice || 0} × {formData.quantity}
                 </div>
@@ -544,7 +525,7 @@ export function BookingForm({
           >
             {isSubmitting 
               ? "Processing Booking..." 
-              : isRangeMode 
+              : allowRangeBooking 
                 ? `Book ${numberOfNights} ${numberOfNights === 1 ? 'Night' : 'Nights'} - $${totalPrice}`
                 : `Confirm Booking - $${totalPrice}`
             }
