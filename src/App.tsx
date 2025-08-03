@@ -398,7 +398,7 @@ function App() {
 
         {/* Booking Form Dialog */}
         <Dialog open={showBookingForm} onOpenChange={setShowBookingForm}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-full max-w-none max-h-[90vh] overflow-y-auto m-4">
             {selectedDate && selectedDayAvailability && (
               <BookingForm
                 selectedDate={selectedDate}
