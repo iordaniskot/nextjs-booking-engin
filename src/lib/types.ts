@@ -23,6 +23,8 @@ export interface Booking {
   date: string; // YYYY-MM-DD format (check-in date for range bookings)
   checkInDate?: string; // YYYY-MM-DD format
   checkOutDate?: string; // YYYY-MM-DD format
+  checkInTime?: string; // Check-in time for range bookings (HH:MM format)
+  checkOutTime?: string; // Check-out time for range bookings (HH:MM format)
   startTime?: string; // HH:MM format (optional for all-day bookings)
   endTime?: string; // HH:MM format
   quantity: number;
@@ -52,6 +54,9 @@ export interface BookingSettings {
   slotDuration: number; // minutes
   advanceBookingDays: number;
   timezone: string;
+  checkInTime?: string; // Default check-in time for multi-day bookings (HH:MM format)
+  checkOutTime?: string; // Default check-out time for multi-day bookings (HH:MM format)
+  requireCheckInOutTimes: boolean; // Whether to enforce check-in/out times for range bookings
 }
 
 export interface CalendarEvent {
@@ -71,6 +76,8 @@ export interface BookingFormData {
   date: string;
   checkInDate?: string;
   checkOutDate?: string;
+  checkInTime?: string; // Check-in time for range bookings
+  checkOutTime?: string; // Check-out time for range bookings
   startTime?: string;
   endTime?: string;
   quantity: number;

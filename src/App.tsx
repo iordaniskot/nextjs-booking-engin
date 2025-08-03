@@ -57,7 +57,10 @@ function App() {
     workingHours: { start: '09:00', end: '17:00' },
     slotDuration: 60,
     advanceBookingDays: 365, // Allow booking up to a year in advance
-    timezone: 'UTC'
+    timezone: 'UTC',
+    checkInTime: '14:00', // Default 2 PM check-in
+    checkOutTime: '10:00', // Default 10 AM check-out
+    requireCheckInOutTimes: false // Allow manual time selection if no defaults
   });
 
   const [selectedDate, setSelectedDate] = useState<string | undefined>();
@@ -176,6 +179,8 @@ function App() {
           date: bookingData.checkInDate, // Use check-in date as primary date
           checkInDate: bookingData.checkInDate,
           checkOutDate: bookingData.checkOutDate,
+          checkInTime: bookingData.checkInTime,
+          checkOutTime: bookingData.checkOutTime,
           startTime: bookingData.startTime,
           endTime: bookingData.endTime,
           quantity: bookingData.quantity,
@@ -310,12 +315,17 @@ function App() {
     const events = bookings.map(booking => {
       if (booking.isRangeBooking && booking.checkInDate && booking.checkOutDate) {
         // For range bookings, create a multi-day event
+        const checkInTimeDisplay = booking.checkInTime ? ` at ${formatTimeForDisplay(booking.checkInTime)}` : '';
+        const checkOutTimeDisplay = booking.checkOutTime ? ` at ${formatTimeForDisplay(booking.checkOutTime)}` : '';
+        
         return {
           summary: `Booking - ${booking.customerName} (${booking.numberOfNights} nights)`,
-          description: `Customer: ${booking.customerName}\nEmail: ${booking.customerEmail}\nPhone: ${booking.customerPhone || 'N/A'}\nQuantity: ${booking.quantity}\nTotal: $${booking.totalPrice}\nNotes: ${booking.notes || 'N/A'}\nCheck-in: ${formatDateForDisplay(booking.checkInDate)}\nCheck-out: ${formatDateForDisplay(booking.checkOutDate)}`,
+          description: `Customer: ${booking.customerName}\nEmail: ${booking.customerEmail}\nPhone: ${booking.customerPhone || 'N/A'}\nQuantity: ${booking.quantity}\nTotal: $${booking.totalPrice}\nNotes: ${booking.notes || 'N/A'}\nCheck-in: ${formatDateForDisplay(booking.checkInDate)}${checkInTimeDisplay}\nCheck-out: ${formatDateForDisplay(booking.checkOutDate)}${checkOutTimeDisplay}`,
           startDate: booking.checkInDate,
           endDate: booking.checkOutDate,
-          allDay: true, // Range bookings are typically all-day
+          startTime: booking.checkInTime,
+          endTime: booking.checkOutTime,
+          allDay: !booking.checkInTime && !booking.checkOutTime, // Only all-day if no times specified
           location: settings?.businessName || 'Booking Location'
         };
       } else {
@@ -498,7 +508,11 @@ function App() {
                             <div className="font-medium">{booking.customerName}</div>
                             <div className="text-sm text-muted-foreground">
                               {booking.isRangeBooking && booking.checkInDate && booking.checkOutDate
-                                ? `${formatDateRange(booking.checkInDate, booking.checkOutDate)}`
+                                ? (() => {
+                                    const checkInTime = booking.checkInTime ? ` at ${formatTimeForDisplay(booking.checkInTime)}` : '';
+                                    const checkOutTime = booking.checkOutTime ? ` at ${formatTimeForDisplay(booking.checkOutTime)}` : '';
+                                    return `${formatDateRange(booking.checkInDate, booking.checkOutDate)}${checkInTime && checkOutTime ? ` (${booking.checkInTime}-${booking.checkOutTime})` : ''}`;
+                                  })()
                                 : `${formatDateForDisplay(booking.date)}${booking.startTime ? ` at ${formatTimeForDisplay(booking.startTime)}` : ''}`
                               }
                             </div>
@@ -554,6 +568,9 @@ function App() {
                 }}
                 allowRangeBooking={settings?.allowRangeBooking || false}
                 minimumNights={settings?.minimumNights || 1}
+                checkInTime={settings?.checkInTime}
+                checkOutTime={settings?.checkOutTime}
+                requireCheckInOutTimes={settings?.requireCheckInOutTimes || false}
               />
             )}
           </DialogContent>
@@ -614,18 +631,64 @@ function App() {
               </div>
 
               {settings?.allowRangeBooking && (
-                <div className="space-y-2">
-                  <Label htmlFor="minimumNights">Minimum Nights</Label>
-                  <Input
-                    id="minimumNights"
-                    type="number"
-                    min="1"
-                    value={settings?.minimumNights || 1}
-                    onChange={(e) => setSettings(prev => ({ ...prev!, minimumNights: parseInt(e.target.value) || 1 }))}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Minimum number of nights required for multi-day bookings
-                  </p>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="minimumNights">Minimum Nights</Label>
+                    <Input
+                      id="minimumNights"
+                      type="number"
+                      min="1"
+                      value={settings?.minimumNights || 1}
+                      onChange={(e) => setSettings(prev => ({ ...prev!, minimumNights: parseInt(e.target.value) || 1 }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Minimum number of nights required for multi-day bookings
+                    </p>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-medium">Check-in / Check-out Times</h4>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="checkInTime">Default Check-in Time</Label>
+                        <Input
+                          id="checkInTime"
+                          type="time"
+                          value={settings?.checkInTime || ''}
+                          onChange={(e) => setSettings(prev => ({ ...prev!, checkInTime: e.target.value }))}
+                          placeholder="14:00"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="checkOutTime">Default Check-out Time</Label>
+                        <Input
+                          id="checkOutTime"
+                          type="time"
+                          value={settings?.checkOutTime || ''}
+                          onChange={(e) => setSettings(prev => ({ ...prev!, checkOutTime: e.target.value }))}
+                          placeholder="10:00"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="requireCheckInOutTimes"
+                        checked={settings?.requireCheckInOutTimes || false}
+                        onCheckedChange={(checked) => setSettings(prev => ({ ...prev!, requireCheckInOutTimes: checked }))}
+                      />
+                      <div className="space-y-1">
+                        <Label htmlFor="requireCheckInOutTimes">Enforce Default Times</Label>
+                        <p className="text-xs text-muted-foreground">
+                          When enabled, customers must use default times. When disabled, customers can set custom times.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
               

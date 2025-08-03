@@ -27,6 +27,9 @@ interface BookingFormProps {
   isSubmitting?: boolean;
   allowRangeBooking?: boolean;
   minimumNights?: number; // Add minimum nights prop
+  checkInTime?: string; // Default check-in time
+  checkOutTime?: string; // Default check-out time
+  requireCheckInOutTimes?: boolean; // Whether to enforce default times
 }
 
 export function BookingForm({ 
@@ -36,7 +39,10 @@ export function BookingForm({
   onCancel,
   isSubmitting = false,
   allowRangeBooking = false,
-  minimumNights = 1
+  minimumNights = 1,
+  checkInTime,
+  checkOutTime,
+  requireCheckInOutTimes = false
 }: BookingFormProps) {
   // Get the availability for the selected date first
   const initialDayAvailability = Array.isArray(availability) 
@@ -50,6 +56,8 @@ export function BookingForm({
     date: selectedDate,
     checkInDate: selectedDate,
     checkOutDate: '',
+    checkInTime: requireCheckInOutTimes ? checkInTime : undefined,
+    checkOutTime: requireCheckInOutTimes ? checkOutTime : undefined,
     quantity: 1,
     customerName: '',
     customerEmail: '',
@@ -149,6 +157,8 @@ export function BookingForm({
       ...formData,
       startTime: selectedTimeSlot?.startTime || formData.startTime,
       endTime: selectedTimeSlot?.endTime || formData.endTime,
+      checkInTime: allowRangeBooking ? (formData.checkInTime || checkInTime) : undefined,
+      checkOutTime: allowRangeBooking ? (formData.checkOutTime || checkOutTime) : undefined,
       isRangeBooking: allowRangeBooking
     };
 
@@ -301,6 +311,97 @@ export function BookingForm({
             )}
           </CardContent>
         </Card>
+
+        {/* Check-in/Check-out Time Selection - Only for range bookings */}
+        {allowRangeBooking && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock size={20} />
+                Check-in & Check-out Times
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {requireCheckInOutTimes && checkInTime && checkOutTime ? (
+                <div className="bg-muted/50 p-4 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium">Check-in Time:</span>
+                      <div className="text-lg font-semibold text-primary mt-1">
+                        {formatTimeForDisplay(checkInTime)}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="font-medium">Check-out Time:</span>
+                      <div className="text-lg font-semibold text-primary mt-1">
+                        {formatTimeForDisplay(checkOutTime)}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Fixed check-in and check-out times are enforced for all bookings.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="checkInTime" className="flex items-center gap-2">
+                        <MapPin size={14} />
+                        Check-in Time
+                      </Label>
+                      <Input
+                        id="checkInTime"
+                        type="time"
+                        value={formData.checkInTime || checkInTime || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, checkInTime: e.target.value }))}
+                        placeholder={checkInTime || '14:00'}
+                      />
+                      {checkInTime && (
+                        <p className="text-xs text-muted-foreground">
+                          Default: {formatTimeForDisplay(checkInTime)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="checkOutTime" className="flex items-center gap-2">
+                        <MapPin size={14} />
+                        Check-out Time
+                      </Label>
+                      <Input
+                        id="checkOutTime"
+                        type="time"
+                        value={formData.checkOutTime || checkOutTime || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, checkOutTime: e.target.value }))}
+                        placeholder={checkOutTime || '10:00'}
+                      />
+                      {checkOutTime && (
+                        <p className="text-xs text-muted-foreground">
+                          Default: {formatTimeForDisplay(checkOutTime)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {!checkInTime || !checkOutTime ? (
+                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                      <p className="text-sm text-amber-800">
+                        💡 No default times set. You can set custom check-in and check-out times above.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-muted/50 p-3 rounded-lg">
+                      <p className="text-sm text-muted-foreground">
+                        You can customize the times above or leave them as default.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Time Slot Selection */}
         {dayAvailability.useHourlyBooking && dayAvailability.timeSlots && (
           <Card>
@@ -475,6 +576,22 @@ export function BookingForm({
                     <span className="text-sm font-medium">Duration:</span>
                     <span className="text-sm">{numberOfNights} {numberOfNights === 1 ? 'night' : 'nights'}</span>
                   </div>
+                  {(formData.checkInTime || formData.checkOutTime) && (
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {formData.checkInTime && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Check-in:</span>
+                          <span className="font-medium">{formatTimeForDisplay(formData.checkInTime)}</span>
+                        </div>
+                      )}
+                      {formData.checkOutTime && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Check-out:</span>
+                          <span className="font-medium">{formatTimeForDisplay(formData.checkOutTime)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               
