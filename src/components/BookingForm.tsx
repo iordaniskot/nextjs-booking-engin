@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { Calendar, Clock, DollarSign, User, CalendarBlank } from '@phosphor-icons/react';
+import { Calendar, Clock, DollarSign, User, CalendarBlank, Bed, MapPin } from '@phosphor-icons/react';
 import { BookingFormData, DayAvailability, TimeSlot } from '@/lib/types';
 import { 
   formatDateForDisplay, 
@@ -36,7 +36,16 @@ export function BookingForm({
   isSubmitting = false,
   allowRangeBooking = false
 }: BookingFormProps) {
-  const [isRangeMode, setIsRangeMode] = useState(false);
+  // Get the availability for the selected date first
+  const initialDayAvailability = Array.isArray(availability) 
+    ? availability.find(day => day.date === selectedDate)
+    : availability;
+
+  // For all-day bookings, default to range mode if range booking is allowed
+  const [isRangeMode, setIsRangeMode] = useState(
+    allowRangeBooking && !initialDayAvailability?.useHourlyBooking
+  );
+  
   const [formData, setFormData] = useState<BookingFormData>({
     date: selectedDate,
     checkInDate: selectedDate,
@@ -46,7 +55,7 @@ export function BookingForm({
     customerEmail: '',
     customerPhone: '',
     notes: '',
-    isRangeBooking: false
+    isRangeBooking: allowRangeBooking && !initialDayAvailability?.useHourlyBooking
   });
 
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
@@ -178,7 +187,40 @@ export function BookingForm({
       
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Booking Type Selection */}
-        {allowRangeBooking && (
+        {allowRangeBooking && !dayAvailability?.useHourlyBooking && (
+          <Card className="border-2 border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bed size={20} className="text-primary" />
+                Booking Type
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="range-mode"
+                    checked={isRangeMode}
+                    onCheckedChange={setIsRangeMode}
+                  />
+                  <Label htmlFor="range-mode" className="flex items-center gap-2">
+                    <CalendarBlank size={16} />
+                    Multi-day booking (Check-in/Check-out)
+                  </Label>
+                </div>
+                {isRangeMode && (
+                  <div className="bg-muted/50 p-3 rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      Perfect for extended stays! Select your check-in and check-out dates below.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {allowRangeBooking && dayAvailability?.useHourlyBooking && (
           <Card>
             <CardHeader>
               <CardTitle>Booking Type</CardTitle>
@@ -200,44 +242,63 @@ export function BookingForm({
         )}
 
         {/* Date Selection */}
-        <Card>
+        <Card className={cn(
+          isRangeMode && "border-2 border-primary/20 bg-primary/5"
+        )}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Calendar size={20} />
+              {isRangeMode ? <Bed size={20} className="text-primary" /> : <Calendar size={20} />}
               {isRangeMode ? 'Check-in & Check-out Dates' : formatDateForDisplay(selectedDate)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {isRangeMode ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="checkin-date">Check-in Date</Label>
-                  <Input
-                    id="checkin-date"
-                    type="date"
-                    value={formData.checkInDate || selectedDate}
-                    onChange={(e) => setFormData(prev => ({ ...prev, checkInDate: e.target.value }))}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="checkin-date" className="flex items-center gap-2">
+                      <MapPin size={14} />
+                      Check-in Date
+                    </Label>
+                    <Input
+                      id="checkin-date"
+                      type="date"
+                      value={formData.checkInDate || selectedDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, checkInDate: e.target.value }))}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="text-lg"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="checkout-date" className="flex items-center gap-2">
+                      <MapPin size={14} />
+                      Check-out Date
+                    </Label>
+                    <Input
+                      id="checkout-date"
+                      type="date"
+                      value={formData.checkOutDate}
+                      onChange={(e) => handleCheckOutDateChange(e.target.value)}
+                      min={formData.checkInDate ? 
+                        new Date(new Date(formData.checkInDate).getTime() + 86400000).toISOString().split('T')[0] 
+                        : new Date(new Date().getTime() + 86400000).toISOString().split('T')[0]
+                      }
+                      className="text-lg"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="checkout-date">Check-out Date</Label>
-                  <Input
-                    id="checkout-date"
-                    type="date"
-                    value={formData.checkOutDate}
-                    onChange={(e) => handleCheckOutDateChange(e.target.value)}
-                    min={formData.checkInDate ? 
-                      new Date(new Date(formData.checkInDate).getTime() + 86400000).toISOString().split('T')[0] 
-                      : new Date(new Date().getTime() + 86400000).toISOString().split('T')[0]
-                    }
-                  />
-                </div>
+                
                 {formData.checkInDate && formData.checkOutDate && (
-                  <div className="col-span-full">
-                    <Badge variant="secondary" className="text-sm">
+                  <div className="bg-muted p-4 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Stay Duration</span>
+                      <Badge variant="secondary" className="text-sm">
+                        {numberOfNights} {numberOfNights === 1 ? 'night' : 'nights'}
+                      </Badge>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
                       {formatDateRange(formData.checkInDate, formData.checkOutDate)}
-                    </Badge>
+                    </div>
                   </div>
                 )}
               </div>
@@ -403,37 +464,61 @@ export function BookingForm({
         <Separator />
 
         {/* Price Summary */}
-        <Card>
+        <Card className="border-2 border-primary/20 bg-primary/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <DollarSign size={20} />
+              <DollarSign size={20} className="text-primary" />
               Booking Summary
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted p-4 rounded-lg space-y-2">
+            <div className="bg-background p-4 rounded-lg space-y-3 border">
+              {isRangeMode && formData.checkInDate && formData.checkOutDate && (
+                <div className="space-y-2 pb-3 border-b">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Stay Period:</span>
+                    <span className="text-sm">{formatDateRange(formData.checkInDate, formData.checkOutDate)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Duration:</span>
+                    <span className="text-sm">{numberOfNights} {numberOfNights === 1 ? 'night' : 'nights'}</span>
+                  </div>
+                </div>
+              )}
+              
               <div className="flex justify-between">
-                <span>Price per unit:</span>
-                <span>${selectedTimeSlot?.price || dayAvailability.basePrice}</span>
+                <span>Rate per {isRangeMode ? 'night' : 'unit'}:</span>
+                <span>${selectedTimeSlot?.price || dayAvailability?.basePrice || 0}</span>
               </div>
+              
               <div className="flex justify-between">
                 <span>Quantity:</span>
                 <span>{formData.quantity}</span>
               </div>
+              
               {isRangeMode && numberOfNights > 1 && (
                 <div className="flex justify-between">
                   <span>Number of nights:</span>
                   <span>{numberOfNights}</span>
                 </div>
               )}
+              
               <Separator />
-              <div className="flex justify-between text-lg font-semibold">
-                <span>Total:</span>
+              
+              <div className="flex justify-between text-lg font-semibold text-primary">
+                <span>Total Amount:</span>
                 <span>${totalPrice}</span>
               </div>
+              
               {isRangeMode && numberOfNights > 1 && (
-                <div className="text-xs text-muted-foreground">
-                  ${selectedTimeSlot?.price || dayAvailability.basePrice} × {formData.quantity} × {numberOfNights} nights
+                <div className="text-xs text-muted-foreground text-center">
+                  ${selectedTimeSlot?.price || dayAvailability?.basePrice || 0} × {formData.quantity} × {numberOfNights} nights
+                </div>
+              )}
+              
+              {!isRangeMode && (
+                <div className="text-xs text-muted-foreground text-center">
+                  ${selectedTimeSlot?.price || dayAvailability?.basePrice || 0} × {formData.quantity}
                 </div>
               )}
             </div>
@@ -454,9 +539,15 @@ export function BookingForm({
           <Button
             type="submit"
             disabled={!isFormValid || isSubmitting}
-            className="flex-1"
+            className="flex-1 bg-primary hover:bg-primary/90"
+            size="lg"
           >
-            {isSubmitting ? "Creating Booking..." : "Confirm Booking"}
+            {isSubmitting 
+              ? "Processing Booking..." 
+              : isRangeMode 
+                ? `Book ${numberOfNights} ${numberOfNights === 1 ? 'Night' : 'Nights'} - $${totalPrice}`
+                : `Confirm Booking - $${totalPrice}`
+            }
           </Button>
         </div>
       </form>

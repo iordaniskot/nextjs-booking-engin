@@ -48,14 +48,14 @@ function App() {
   const [bookings, setBookings] = useKV<Booking[]>('bookings', []);
   const [availability, setAvailability] = useKV<DayAvailability[]>('availability', []);
   const [settings, setSettings] = useKV<BookingSettings>('settings', {
-    businessName: 'My Booking Business',
-    defaultPrice: 100,
-    defaultQuantity: 10,
+    businessName: 'Hotel Booking System',
+    defaultPrice: 150,
+    defaultQuantity: 5,
     useHourlyBooking: false,
-    allowRangeBooking: true, // Enable range booking by default
+    allowRangeBooking: true, // Enable range booking by default for hotel-style bookings
     workingHours: { start: '09:00', end: '17:00' },
     slotDuration: 60,
-    advanceBookingDays: 90,
+    advanceBookingDays: 365, // Allow booking up to a year in advance
     timezone: 'UTC'
   });
 
@@ -379,7 +379,10 @@ function App() {
               {settings?.businessName || 'Booking Engine'}
             </h1>
             <p className="text-muted-foreground">
-              Manage your bookings and availability
+              {settings?.allowRangeBooking 
+                ? 'Book your stay with easy check-in and check-out dates'
+                : 'Manage your bookings and availability'
+              }
             </p>
           </div>
           
