@@ -732,13 +732,13 @@ export function BookingForm({
                   </div>
                   
                   <Separator />
-                  
-                  <div className="flex justify-between text-lg font-semibold text-primary">
-                    <span>Total Amount:</span>
-                    <span>${totalPrice}</span>
-                  </div>
                 </>
+              )}
               
+              <div className="flex justify-between text-lg font-semibold text-primary">
+                <span>Total Amount:</span>
+                <span>${totalPrice}</span>
+              </div>
               
               {allowRangeBooking && numberOfNights > 1 && (
                 <div className="text-xs text-muted-foreground text-center">
@@ -753,8 +753,6 @@ export function BookingForm({
               )}
             </div>
           </CardContent>
-        </Card>
-
         </Card>
 
         {/* Action Buttons */}
